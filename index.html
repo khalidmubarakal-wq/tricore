@@ -1944,6 +1944,16 @@ react/cjs/react-jsx-runtime.production.js:
   installQuickLauncher();
 })();
 </script>
+  <script type="module">
+  import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+  const supabase = createClient(
+    'https://bfgnwnrxlljkwkzzucza.supabase.co',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmZ253bnJ4bGxqa3drenp1Y3phIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTUxMzksImV4cCI6MjA4OTQ3MTEzOX0.EzX7JwANBE0be0QpwpZjH2Qsbkv4BVZTyhTuXBseYTc'
+  );
+
+  window.supabase = supabase;
+</script>
 
 </body>
 </html>
