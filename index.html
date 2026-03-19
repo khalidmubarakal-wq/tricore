@@ -1955,20 +1955,49 @@ react/cjs/react-jsx-runtime.production.js:
   window.supabase = supabase;
 </script>
 <script type="module">
+  function waitFor(fn, cb, timeout = 10000) {
+    const start = Date.now();
+    const timer = setInterval(() => {
+      let result = null;
+      try {
+        result = fn();
+      } catch (_) {}
+
+      if (result) {
+        clearInterval(timer);
+        cb(result);
+        return;
+      }
+
+      if (Date.now() - start > timeout) {
+        clearInterval(timer);
+      }
+    }, 300);
+  }
+
+  // -----------------------------
+  // Auth helpers
+  // -----------------------------
   window.tricoreSignUp = async function(email, password, fullName, role) {
     const { data, error } = await window.supabase.auth.signUp({
-      email: email,
-      password: password
+      email,
+      password,
+      options: {
+        data: {
+          full_name: fullName || '',
+          role: role || 'pm'
+        }
+      }
     });
 
     if (error) throw error;
 
-    const user = data.user || (data.session && data.session.user);
-    if (!user) return data;
+    const user = data?.user || data?.session?.user;
+    if (!user) throw new Error('Registration failed.');
 
     const { error: profileError } = await window.supabase
       .from('profiles')
-      .insert({
+      .upsert({
         id: user.id,
         full_name: fullName || '',
         email: email,
@@ -1977,26 +2006,25 @@ react/cjs/react-jsx-runtime.production.js:
 
     if (profileError) throw profileError;
 
-    return data;
-  }
+    return { ok: true, data };
+  };
 
   window.tricoreSignIn = async function(email, password) {
     const { data, error } = await window.supabase.auth.signInWithPassword({
-      email: email,
-      password: password
+      email,
+      password
     });
 
     if (error) throw error;
     return data;
-  }
+  };
 
   window.tricoreCurrentUser = async function() {
     const { data, error } = await window.supabase.auth.getUser();
     if (error) throw error;
     return data.user;
-  }
-</script>
-  <script type="module">
+  };
+
   async function tricoreGetProfile(userId) {
     const { data, error } = await window.supabase
       .from('profiles')
@@ -2014,16 +2042,20 @@ react/cjs/react-jsx-runtime.production.js:
     if (!profile) {
       const payload = {
         id: user.id,
-        full_name: fallbackName || user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
+        full_name:
+          fallbackName ||
+          user.user_metadata?.full_name ||
+          user.email?.split('@')[0] ||
+          'User',
         email: user.email,
-        role: fallbackRole || 'pm'
+        role: fallbackRole || user.user_metadata?.role || 'pm'
       };
 
-      const { error: insertError } = await window.supabase
+      const { error } = await window.supabase
         .from('profiles')
-        .insert(payload);
+        .upsert(payload);
 
-      if (insertError) throw insertError;
+      if (error) throw error;
       profile = payload;
     }
 
@@ -2061,17 +2093,9 @@ react/cjs/react-jsx-runtime.production.js:
     return session;
   }
 
-  // Apply the patch after page load
-  window.addEventListener('load', async function() {
-    // If user already has an active Supabase session, mirror it into tc_session
-    try {
-      await tricoreSyncSessionFromSupabase();
-    } catch (e) {
-      console.warn('Session sync skipped:', e?.message || e);
-    }
-  });
-</script>
-  <script type="module">
+  // -----------------------------
+  // Projects
+  // -----------------------------
   window.tricoreCreateProject = async function(payload) {
     const user = await window.tricoreCurrentUser();
     if (!user) throw new Error('No authenticated user found');
@@ -2108,34 +2132,30 @@ react/cjs/react-jsx-runtime.production.js:
     if (error) throw error;
     return data || [];
   };
-</script>
-  <script type="module">
+
   window.tricoreHydrateProjectsFromSupabase = async function() {
     try {
       const user = await window.tricoreCurrentUser();
       if (!user) return;
 
       const projects = await window.tricoreLoadProjects();
+      const stateKey = 'tc_state_' + user.id;
+      const stored = JSON.parse(localStorage.getItem(stateKey) || '{}');
 
-      const stored = JSON.parse(localStorage.getItem('tc_state_' + user.id) || '{}');
       const nextState = Object.assign({}, stored, {
         projects: Array.isArray(projects) ? projects : (stored.projects || [])
       });
 
-      localStorage.setItem('tc_state_' + user.id, JSON.stringify(nextState));
+      localStorage.setItem(stateKey, JSON.stringify(nextState));
       console.log('Hydrated projects from Supabase:', projects);
     } catch (err) {
-      console.error('Hydration failed:', err);
+      console.error('Project hydration failed:', err);
     }
   };
 
-  window.addEventListener('load', function() {
-    setTimeout(async () => {
-      await window.tricoreHydrateProjectsFromSupabase();
-    }, 1200);
-  });
-</script>
-  <script type="module">
+  // -----------------------------
+  // Tasks
+  // -----------------------------
   window.tricoreCreateTask = async function(payload) {
     const { data, error } = await window.supabase
       .from('tasks')
@@ -2165,8 +2185,7 @@ react/cjs/react-jsx-runtime.production.js:
     if (error) throw error;
     return data || [];
   };
-</script>
-  <script type="module">
+
   window.tricoreHydrateTasksFromSupabase = async function() {
     try {
       const user = await window.tricoreCurrentUser();
@@ -2206,55 +2225,19 @@ react/cjs/react-jsx-runtime.production.js:
     }
   };
 
-  window.addEventListener('load', function() {
-    setTimeout(async () => {
-      await window.tricoreHydrateTasksFromSupabase();
-    }, 1600);
-  });
-</script>
-<script type="module">
-  function waitFor(fn, cb, timeout = 10000) {
-    const start = Date.now();
-    const t = setInterval(() => {
-      let res = null;
-      try {
-        res = fn();
-      } catch (_) {}
-      if (res) {
-        clearInterval(t);
-        cb(res);
-      }
-      if (Date.now() - start > timeout) clearInterval(t);
-    }, 300);
-  }
-
-  // Patch AUTH
+  // -----------------------------
+  // Patch legacy app auth/form hooks
+  // -----------------------------
   waitFor(() => window.Zl, (Zl) => {
     Zl.login = async (email, password) => {
       try {
-        const { data, error } = await window.supabase.auth.signInWithPassword({
-          email,
-          password
-        });
-
-        if (error) return { ok: false, err: error.message };
-
+        const data = await window.tricoreSignIn(email, password);
         const user = data.user;
 
-        const { data: profile } = await window.supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .maybeSingle();
+        const profile = await tricoreEnsureProfile(user);
+        const session = tricoreBuildSession(user, profile);
+        tricoreSaveCompatSession(session);
 
-        const session = {
-          userId: user.id,
-          name: profile?.full_name || user.email,
-          email: user.email,
-          role: profile?.role || 'pm'
-        };
-
-        localStorage.setItem('tc_session', JSON.stringify(session));
         return { ok: true, session };
       } catch (err) {
         return { ok: false, err: err?.message || 'Login failed.' };
@@ -2263,33 +2246,7 @@ react/cjs/react-jsx-runtime.production.js:
 
     Zl.register = async (name, email, password, role) => {
       try {
-        const { data, error } = await window.supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              full_name: name,
-              role: role || 'pm'
-            }
-          }
-        });
-
-        if (error) return { ok: false, err: error.message };
-
-        const user = data?.user;
-        if (!user) return { ok: false, err: 'Registration failed.' };
-
-        const { error: profileError } = await window.supabase
-          .from('profiles')
-          .upsert({
-            id: user.id,
-            full_name: name || 'User',
-            email: email,
-            role: role || 'pm'
-          });
-
-        if (profileError) return { ok: false, err: profileError.message };
-
+        await window.tricoreSignUp(email, password, name, role);
         return { ok: true };
       } catch (err) {
         return { ok: false, err: err?.message || 'Registration failed.' };
@@ -2303,13 +2260,12 @@ react/cjs/react-jsx-runtime.production.js:
       localStorage.removeItem('tc_session');
     };
 
-    console.log("Auth patched");
+    console.log('Auth patched');
   });
 
-  // Patch Project Form
   waitFor(() => document.querySelector('#tricore-project-form'), (form) => {
-    if (form.dataset.done) return;
-    form.dataset.done = true;
+    if (form.dataset.done === 'true') return;
+    form.dataset.done = 'true';
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -2327,39 +2283,57 @@ react/cjs/react-jsx-runtime.production.js:
       });
 
       await window.tricoreHydrateProjectsFromSupabase();
-
       location.reload();
     });
 
-    console.log("Project form patched");
+    console.log('Project form patched');
   });
 
-  // Patch Task Form
   waitFor(() => document.querySelector('input[placeholder*="Task"]'), (input) => {
     const form = input.closest('form');
-    if (!form || form.dataset.doneTask) return;
+    if (!form || form.dataset.doneTask === 'true') return;
 
-    form.dataset.doneTask = true;
+    form.dataset.doneTask = 'true';
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
 
-      const projects = await tricoreLoadProjects();
-      const p = projects[0];
-      if (!p) return;
+      const projects = await window.tricoreLoadProjects();
+      const project = projects[0];
+      if (!project) return;
 
-      await tricoreCreateTask({
-        project_id: p.id,
+      await window.tricoreCreateTask({
+        project_id: project.id,
         title: input.value,
-        assignee: "Khalid"
+        assignee: 'Khalid'
       });
 
-      await tricoreHydrateTasksFromSupabase();
-
+      await window.tricoreHydrateTasksFromSupabase();
       location.reload();
     });
 
-    console.log("Task form patched");
+    console.log('Task form patched');
+  });
+
+  // -----------------------------
+  // Initial hydration / session sync
+  // -----------------------------
+  window.addEventListener('load', function() {
+    setTimeout(async () => {
+      try {
+        await tricoreSyncSessionFromSupabase();
+      } catch (e) {
+        console.warn('Session sync skipped:', e?.message || e);
+      }
+    }, 300);
+
+    setTimeout(async () => {
+      await window.tricoreHydrateProjectsFromSupabase();
+    }, 1200);
+
+    setTimeout(async () => {
+      await window.tricoreHydrateTasksFromSupabase();
+    }, 1600);
   });
 </script>
 </body>
