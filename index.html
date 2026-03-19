@@ -2404,5 +2404,104 @@ react/cjs/react-jsx-runtime.production.js:
     }, 2000);
   });
 </script>
+  <script type="module">
+  function waitFor(fn, cb, timeout = 10000) {
+    const start = Date.now();
+    const t = setInterval(() => {
+      const res = fn();
+      if (res) {
+        clearInterval(t);
+        cb(res);
+      }
+      if (Date.now() - start > timeout) clearInterval(t);
+    }, 300);
+  }
+
+  // Patch AUTH (بدون أخطاء Zl)
+  waitFor(() => window.Zl, (Zl) => {
+    Zl.login = async (email, password) => {
+      const { data, error } = await window.supabase.auth.signInWithPassword({ email, password });
+      if (error) return { ok: false, err: error.message };
+
+      const user = data.user;
+
+      const { data: profile } = await window.supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      const session = {
+        userId: user.id,
+        name: profile?.full_name || user.email,
+        email: user.email,
+        role: profile?.role || 'pm'
+      };
+
+      localStorage.setItem('tc_session', JSON.stringify(session));
+      return { ok: true, session };
+    };
+
+    Zl.logout = async () => {
+      await window.supabase.auth.signOut();
+      localStorage.removeItem('tc_session');
+    };
+
+    console.log("Auth patched");
+  });
+
+  // Patch Project Form
+  waitFor(() => document.querySelector('#tricore-project-form'), (form) => {
+    if (form.dataset.done) return;
+    form.dataset.done = true;
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const fd = new FormData(form);
+
+      await window.tricoreCreateProject({
+        name: fd.get('name'),
+        code: fd.get('code'),
+        owner_name: fd.get('owner'),
+        department: fd.get('department'),
+        status: fd.get('status')
+      });
+
+      await window.tricoreHydrateProjectsFromSupabase();
+
+      location.reload();
+    });
+
+    console.log("Project form patched");
+  });
+
+  // Patch Task Form
+  waitFor(() => document.querySelector('input[placeholder*="Task"]'), (input) => {
+    const form = input.closest('form');
+    if (!form || form.dataset.doneTask) return;
+
+    form.dataset.doneTask = true;
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const projects = await tricoreLoadProjects();
+      const p = projects[0];
+
+      await tricoreCreateTask({
+        project_id: p.id,
+        title: input.value,
+        assignee: "Khalid"
+      });
+
+      await tricoreHydrateTasksFromSupabase();
+
+      location.reload();
+    });
+
+    console.log("Task form patched");
+  });
+</script>
 </body>
 </html>
