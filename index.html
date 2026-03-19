@@ -2264,6 +2264,37 @@ react/cjs/react-jsx-runtime.production.js:
     }, 1200);
   });
 </script>
+  <script type="module">
+  window.tricoreCreateTask = async function(payload) {
+    const { data, error } = await window.supabase
+      .from('tasks')
+      .insert({
+        project_id: payload.project_id,
+        title: payload.title,
+        status: payload.status || 'todo',
+        assignee: payload.assignee || null,
+        start_date: payload.start_date || null,
+        end_date: payload.end_date || null,
+        progress: payload.progress ?? 0
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  };
+
+  window.tricoreLoadTasks = async function(projectId) {
+    const { data, error } = await window.supabase
+      .from('tasks')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+  };
+</script>
 
 </body>
 </html>
