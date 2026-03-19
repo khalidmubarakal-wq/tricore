@@ -2341,6 +2341,68 @@ react/cjs/react-jsx-runtime.production.js:
     }, 1600);
   });
 </script>
+<script type="module">
+  window.tricoreBindTaskForm = function() {
+    const forms = Array.from(document.querySelectorAll('form'));
 
+    forms.forEach(form => {
+      if (form.dataset.taskBound === 'true') return;
+
+      const hasTitle =
+        form.querySelector('input[name="title"]') ||
+        form.querySelector('input[name="taskName"]') ||
+        form.querySelector('input[placeholder*="Task"]');
+
+      if (!hasTitle) return;
+
+      form.dataset.taskBound = 'true';
+
+      form.addEventListener('submit', async function(e) {
+        try {
+          const fd = new FormData(form);
+
+          const projects = await window.tricoreLoadProjects();
+          const firstProject = projects[0];
+          if (!firstProject) throw new Error('No project found');
+
+          const title =
+            fd.get('title') ||
+            fd.get('taskName') ||
+            form.querySelector('input[name="title"]')?.value ||
+            form.querySelector('input[name="taskName"]')?.value ||
+            '';
+
+          if (!String(title || '').trim()) return;
+
+          e.preventDefault();
+
+          const task = await window.tricoreCreateTask({
+            project_id: firstProject.id,
+            title: String(title).trim(),
+            status: fd.get('status') || 'todo',
+            assignee: fd.get('assignee') || 'Khalid',
+            start_date: fd.get('start_date') || null,
+            end_date: fd.get('end_date') || null,
+            progress: Number(fd.get('progress') || 0)
+          });
+
+          await window.tricoreHydrateTasksFromSupabase();
+
+          console.log('Task created in Supabase:', task);
+          alert('Task created successfully');
+          location.reload();
+        } catch (err) {
+          console.error(err);
+        }
+      }, true);
+    });
+  };
+
+  window.addEventListener('load', function() {
+    setTimeout(() => {
+      window.tricoreBindTaskForm();
+    }, 2000);
+  });
+</script>
 </body>
 </html>
