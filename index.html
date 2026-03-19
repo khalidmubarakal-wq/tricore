@@ -2238,6 +2238,32 @@ react/cjs/react-jsx-runtime.production.js:
     }, 1500);
   });
 </script>
+  <script type="module">
+  window.tricoreHydrateProjectsFromSupabase = async function() {
+    try {
+      const user = await window.tricoreCurrentUser();
+      if (!user) return;
+
+      const projects = await window.tricoreLoadProjects();
+
+      const stored = JSON.parse(localStorage.getItem('tc_state_' + user.id) || '{}');
+      const nextState = Object.assign({}, stored, {
+        projects: Array.isArray(projects) ? projects : (stored.projects || [])
+      });
+
+      localStorage.setItem('tc_state_' + user.id, JSON.stringify(nextState));
+      console.log('Hydrated projects from Supabase:', projects);
+    } catch (err) {
+      console.error('Hydration failed:', err);
+    }
+  };
+
+  window.addEventListener('load', function() {
+    setTimeout(async () => {
+      await window.tricoreHydrateProjectsFromSupabase();
+    }, 1200);
+  });
+</script>
 
 </body>
 </html>
