@@ -2146,6 +2146,44 @@ react/cjs/react-jsx-runtime.production.js:
     }
   });
 </script>
+  <script type="module">
+  window.tricoreCreateProject = async function(payload) {
+    const user = await window.tricoreCurrentUser();
+    if (!user) throw new Error('No authenticated user found');
+
+    const { data, error } = await window.supabase
+      .from('projects')
+      .insert({
+        owner_id: user.id,
+        name: payload.name,
+        code: payload.code || null,
+        owner_name: payload.owner_name || null,
+        department: payload.department || null,
+        status: payload.status || 'planning',
+        start_date: payload.start_date || null,
+        end_date: payload.end_date || null
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  };
+
+  window.tricoreLoadProjects = async function() {
+    const user = await window.tricoreCurrentUser();
+    if (!user) return [];
+
+    const { data, error } = await window.supabase
+      .from('projects')
+      .select('*')
+      .eq('owner_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  };
+</script>
 
 </body>
 </html>
