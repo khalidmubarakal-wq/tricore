@@ -2184,6 +2184,60 @@ react/cjs/react-jsx-runtime.production.js:
     return data || [];
   };
 </script>
+  <script type="module">
+  window.tricorePatchProjectCreation = function() {
+    const originalOpenWizard = window.openProjectWizard;
+
+    if (!originalOpenWizard) {
+      console.warn('openProjectWizard not found yet.');
+      return;
+    }
+
+    window.openProjectWizard = function() {
+      originalOpenWizard();
+
+      setTimeout(() => {
+        const form = document.querySelector('#tricore-project-form');
+        if (!form || form.dataset.supabaseBound === 'true') return;
+
+        form.dataset.supabaseBound = 'true';
+
+        form.addEventListener('submit', async function(e) {
+          e.preventDefault();
+
+          try {
+            const formData = new FormData(form);
+
+            const payload = {
+              name: formData.get('name'),
+              code: formData.get('code'),
+              owner_name: formData.get('owner') || 'Khalid',
+              department: formData.get('department') || 'PMO',
+              status: formData.get('status') || 'planning',
+              start_date: formData.get('start'),
+              end_date: formData.get('end')
+            };
+
+            const created = await window.tricoreCreateProject(payload);
+            console.log('Project created in Supabase:', created);
+
+            alert('Project created successfully');
+            location.reload();
+          } catch (err) {
+            console.error(err);
+            alert(err.message || 'Failed to create project');
+          }
+        }, true);
+      }, 300);
+    };
+  };
+
+  window.addEventListener('load', function() {
+    setTimeout(() => {
+      window.tricorePatchProjectCreation();
+    }, 1500);
+  });
+</script>
 
 </body>
 </html>
