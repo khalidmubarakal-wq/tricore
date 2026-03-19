@@ -1,0 +1,1977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>TriCore — Project Performance Platform</title>
+  <style>
+    *,*::before,*::after{box-sizing:border-box}
+    html,body,#root{margin:0;padding:0;min-height:100vh}
+    body{background:#EEF2F7;font-family:system-ui,sans-serif}
+
+    /* Boot screen */
+    #boot{
+      position:fixed;inset:0;z-index:9999;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      background:linear-gradient(135deg,#0A0F1E 0%,#0F1D3E 35%,#0D2A6B 65%,#1245B5 100%);
+      transition:opacity .4s ease;
+    }
+    #boot.hide{opacity:0;pointer-events:none}
+    .boot-svg{margin-bottom:18px;filter:drop-shadow(0 2px 12px rgba(37,99,235,.5))}
+    .boot-title{color:#fff;font-family:system-ui,sans-serif;font-size:18px;font-weight:700;letter-spacing:-.02em;margin-bottom:6px}
+    .boot-sub{color:rgba(255,255,255,.4);font-family:system-ui,sans-serif;font-size:12px;margin-bottom:28px}
+    .boot-ring{width:28px;height:28px;border:2.5px solid rgba(255,255,255,.15);border-top-color:#60A5FA;border-radius:50%;animation:bspin .7s linear infinite}
+    @keyframes bspin{to{transform:rotate(360deg)}}
+  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" media="print" onload="this.media='all'"/>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='20' y1='10' x2='80' y2='90' gradientUnits='userSpaceOnUse'><stop offset='0%25' stop-color='%2360A5FA'/><stop offset='55%25' stop-color='%232563EB'/><stop offset='100%25' stop-color='%231E3A8A'/></linearGradient></defs><path d='M50 8 L92 82 L8 82 Z' fill='url(%23g)'/><circle cx='50' cy='50' r='11' fill='none' stroke='white' stroke-width='3.5' stroke-opacity='.9'/><circle cx='50' cy='50' r='4' fill='white' fill-opacity='.5'/></svg>"/>
+</head>
+<body>
+  <div id="boot">
+    <svg class="boot-svg" width="52" height="52" viewBox="0 0 100 100" fill="none">
+      <defs>
+        <linearGradient id="bg" x1="20" y1="10" x2="80" y2="90" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#60A5FA"/>
+          <stop offset="55%" stop-color="#2563EB"/>
+          <stop offset="100%" stop-color="#1E3A8A"/>
+        </linearGradient>
+      </defs>
+      <path d="M50 8 L92 82 L8 82 Z" fill="url(#bg)"/>
+      <circle cx="50" cy="50" r="11" fill="none" stroke="white" stroke-width="3.5" stroke-opacity=".9"/>
+      <circle cx="50" cy="50" r="4" fill="white" fill-opacity=".5"/>
+    </svg>
+    <div class="boot-title">TriCore</div>
+    <div class="boot-sub">Project Performance Platform</div>
+    <div class="boot-ring"></div>
+  </div>
+  <div id="root"></div>
+
+  <!--
+    PRE-INIT v5: Sync script, runs before React.
+    
+    Logic (uses sessionStorage — cleared automatically on tab/browser close):
+    - If sessionStorage has 'tc_active' AND Supabase token in localStorage → restore tc_session
+    - Otherwise → clear tc_session so React shows login screen
+    
+    This implements "require login after tab close" correctly:
+    - Refresh same tab → sessionStorage survives → session restored → dashboard ✓
+    - Close tab/browser → sessionStorage cleared → next open shows login ✓
+  -->
+  <script>
+  (function TriCorePreInit() {
+    var SB_TOKEN_KEY = 'sb-bfgnwnrxlljkwkzzucza-auth-token';
+    var TC_SESSION   = 'tc_session';
+    var TC_ACTIVE    = 'tc_active'; // sessionStorage key
+
+    // Purge legacy keys
+    try {
+      var bad = [];
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && (k === 'tc_users' || k.startsWith('tc_state_') || k.startsWith('tricore_modal_pos_')))
+          bad.push(k);
+      }
+      bad.forEach(function(k) { localStorage.removeItem(k); });
+    } catch(_) {}
+
+    // Neutralize legacy globals
+    window.Ug = function() { return null; };
+    window.Al = { USERS: '__DISABLED__', SESSION: '__DISABLED__', DATA_PREFIX: 'tc_user_data_' };
+
+    try {
+      // Check if user has an active session in THIS tab
+      var isActive = sessionStorage.getItem(TC_ACTIVE) === '1';
+      if (!isActive) {
+        // Tab was closed/reopened → clear tc_session → React shows login
+        localStorage.removeItem(TC_SESSION);
+        return;
+      }
+
+      // Tab is active — check if Supabase token is still stored
+      var raw = localStorage.getItem(SB_TOKEN_KEY);
+      if (!raw) { localStorage.removeItem(TC_SESSION); return; }
+
+      var stored = JSON.parse(raw);
+      var user   = stored && stored.user;
+      if (!user || !user.id) { localStorage.removeItem(TC_SESSION); return; }
+
+      // Write fresh tc_session so React's useState finds it
+      localStorage.setItem(TC_SESSION, JSON.stringify({
+        userId:    user.id,
+        name:      (user.user_metadata && user.user_metadata.full_name) || user.email.split('@')[0] || 'User',
+        email:     user.email || '',
+        role:      (user.user_metadata && user.user_metadata.role) || 'pm',
+        loginTime: Date.now() // fresh timestamp — prevents 24h expiry check
+      }));
+    } catch(_) {
+      try { localStorage.removeItem(TC_SESSION); } catch(_) {}
+    }
+  })();
+  </script>
+
+
+<script>
+/* =========================
+   PROJECT CREATION TOOLS SECTION
+   - Normalizes project records
+   - Builds starter WBS/template data
+   - Keeps project artifacts aligned
+   ========================= */
+(function(){
+  // Utility helpers for IDs, dates, and numeric safety
+  function uid(){ return 'id-' + Math.random().toString(36).slice(2,9); }
+  function iso(date){
+    const d = date instanceof Date ? new Date(date) : new Date(date || Date.now());
+    if (Number.isNaN(d.getTime())) return new Date().toISOString().split('T')[0];
+    return d.toISOString().split('T')[0];
+  }
+  function addDays(date, days){ const d = new Date(date || Date.now()); d.setDate(d.getDate() + Number(days || 0)); return iso(d); }
+  function addMonths(date, months){ const d = new Date(date || Date.now()); d.setMonth(d.getMonth() + Number(months || 0)); return iso(d); }
+  function toNumber(v){ const n = Number(v); return Number.isFinite(n) ? n : 0; }
+  function cleanCode(v){ return String(v || '').trim().toUpperCase().replace(/\s+/g,'-'); }
+  const templateMap = {
+    blank:[
+      { code:'1.1', name:'Initiation', days:10, bac:25000, status:'notStarted', ks:'backlog' },
+      { code:'1.2', name:'Planning', days:15, bac:40000, status:'notStarted', ks:'backlog' },
+      { code:'1.3', name:'Execution', days:30, bac:90000, status:'inProgress', ks:'inprogress', pct:35 },
+      { code:'1.4', name:'Closure', days:7, bac:15000, status:'notStarted', ks:'backlog' }
+    ],
+    it:[
+      { code:'1.1', name:'Discovery & Requirements', days:14, bac:60000, status:'completed', ks:'done', pct:100 },
+      { code:'1.2', name:'Architecture & Planning', days:14, bac:70000, status:'inProgress', ks:'inprogress', pct:40 },
+      { code:'1.3', name:'Build Sprint', days:28, bac:120000, status:'notStarted', ks:'backlog' },
+      { code:'1.4', name:'Testing & UAT', days:14, bac:50000, status:'notStarted', ks:'backlog' },
+      { code:'1.5', name:'Deployment', days:7, bac:30000, status:'notStarted', ks:'backlog' }
+    ],
+    event:[
+      { code:'1.1', name:'Concept & Planning', days:10, bac:30000, status:'completed', ks:'done', pct:100 },
+      { code:'1.2', name:'Vendors & Logistics', days:18, bac:75000, status:'inProgress', ks:'inprogress', pct:35 },
+      { code:'1.3', name:'Marketing & Registration', days:15, bac:40000, status:'notStarted', ks:'backlog' },
+      { code:'1.4', name:'Execution Day', days:3, bac:100000, status:'notStarted', ks:'backlog' },
+      { code:'1.5', name:'Post-Event Reporting', days:5, bac:20000, status:'notStarted', ks:'backlog' }
+    ],
+    construction:[
+      { code:'1.1', name:'Mobilization & Site Setup', days:20, bac:120000, status:'completed', ks:'done', pct:100 },
+      { code:'1.2', name:'Design & Approvals', days:30, bac:180000, status:'inProgress', ks:'inprogress', pct:30 },
+      { code:'1.3', name:'Civil & Structural Works', days:60, bac:700000, status:'notStarted', ks:'backlog' },
+      { code:'1.4', name:'MEP & Finishing', days:45, bac:500000, status:'notStarted', ks:'backlog' },
+      { code:'1.5', name:'Commissioning & Handover', days:15, bac:150000, status:'notStarted', ks:'backlog' }
+    ],
+    pmo:[
+      { code:'1.1', name:'Current State Assessment', days:12, bac:40000, status:'completed', ks:'done', pct:100 },
+      { code:'1.2', name:'Operating Model Design', days:15, bac:55000, status:'inProgress', ks:'inprogress', pct:50 },
+      { code:'1.3', name:'Governance & Templates', days:18, bac:65000, status:'notStarted', ks:'backlog' },
+      { code:'1.4', name:'Tool Configuration', days:20, bac:80000, status:'notStarted', ks:'backlog' },
+      { code:'1.5', name:'Pilot & Rollout', days:15, bac:45000, status:'notStarted', ks:'backlog' }
+    ]
+  };
+  function statusToPct(status){ if(status==='completed') return 100; if(status==='inProgress') return 35; if(status==='onHold') return 10; return 0; }
+  function normalizeProject(project){
+    return { ...project, code: cleanCode(project.code || project.id || ''), budget: toNumber(project.budget || project.bac || 0), currency: project.currency || 'SAR', methodology: project.methodology || 'hybrid', template: project.template || 'blank', defaultView: project.defaultView || 'list', type: project.type || 'internal', progress: typeof project.progress === 'number' ? project.progress : statusToPct(project.status), created: project.created || iso(new Date()), updatedAt: iso(new Date()) };
+  }
+  function suggestProjectSequence(existing){
+    const list = Array.isArray(existing) ? existing : [];
+    let max = 0;
+    list.forEach(function(project){
+      const raw = String(project?.name || '').trim();
+      const match = raw.match(/project(?:\s+number)?\s*(\d+)/i);
+      if (match) max = Math.max(max, Number(match[1]) || 0);
+    });
+    return max + 1 || 1;
+  }
+  function defaultProjectName(existing){
+    const seq = suggestProjectSequence(existing);
+    return 'Project Number ' + seq;
+  }
+  function defaultProjectCode(existing){
+    const seq = suggestProjectSequence(existing);
+    return 'PRJ-' + String(seq).padStart(3, '0');
+  }
+  function createProjectPackage(form, currentState){
+    const state = currentState || { projects: [] };
+    const existing = Array.isArray(state.projects) ? state.projects : [];
+    const name = String(form?.name || defaultProjectName(existing)).trim();
+    const owner = String(form?.owner || '').trim();
+    const code = cleanCode(form?.code || defaultProjectCode(existing));
+    const start = form?.start || iso(new Date());
+    const end = form?.end || addMonths(start, 2);
+    if(!name) return { ok:false, error:'Project name is required.' };
+    if(!code) return { ok:false, error:'Project code is required.' };
+    if(!owner) return { ok:false, error:'Project owner is required.' };
+    if(!form?.start) return { ok:false, error:'Start date is required.' };
+    if(!form?.end) return { ok:false, error:'Target end date is required.' };
+    if(new Date(end) < new Date(start)) return { ok:false, error:'Target end date must be after the start date.' };
+    if(existing.some(p => String(p.code || '').toUpperCase() === code)) return { ok:false, error:'Project code must be unique.' };
+    const id = 'PRJ-' + Date.now().toString().slice(-5);
+    const project = normalizeProject({ ...form, id, code, name, owner, dept:String(form?.dept || '').trim(), status:form?.status || 'notStarted', priority:form?.priority || 'medium', start, end, targetEndDate:end, created:iso(new Date()), createdBy:owner, health:form?.status === 'onHold' ? 'warning' : 'good' });
+    const template = templateMap[project.template] || templateMap.blank;
+    const rootId = uid();
+    const totalBudget = project.budget || template.reduce((sum, item) => sum + toNumber(item.bac), 0);
+    let cursor = start;
+    let prevId = null;
+    const items = [{ id:rootId, pid:project.id, projectId:project.id, project_id:project.id, par:null, code:'1', name:project.name, description:project.desc || '', type:'summary', resp:project.owner, ps:start, pe:end, bac:totalBudget, ac:0, pct:project.progress || 0, status:project.status, deps:[], pri:project.priority, ks:project.status === 'completed' ? 'done' : (project.status === 'inProgress' ? 'inprogress' : 'backlog') }];
+    template.forEach(function(step, idx){
+      const stepId = uid();
+      const stepStart = idx === 0 ? cursor : addDays(cursor, 1);
+      const stepEnd = addDays(stepStart, step.days);
+      items.push({ id:stepId, pid:project.id, projectId:project.id, project_id:project.id, par:rootId, code:step.code, name:step.name, description:project.desc || '', type:'workpackage', resp:project.owner, ps:stepStart, pe:stepEnd, bac:toNumber(step.bac), ac:0, pct:typeof step.pct === 'number' ? step.pct : (step.status === 'completed' ? 100 : step.status === 'inProgress' ? 35 : 0), status:step.status, deps:prevId ? [prevId] : [], pri:project.priority, ks:step.ks || (step.status === 'completed' ? 'done' : step.status === 'inProgress' ? 'inprogress' : 'backlog') });
+      cursor = stepEnd;
+      prevId = stepId;
+    });
+    project.budget = totalBudget;
+    return { ok:true, project, wbs:items };
+  }
+  function syncProjectArtifacts(state){
+    const next = { ...(state || {}) };
+    next.projects = Array.isArray(next.projects) ? next.projects.map(normalizeProject) : [];
+    next.wbs = Array.isArray(next.wbs) ? next.wbs.map(function(item){
+      const project = next.projects.find(function(p){ return p.id === (item.projectId || item.project_id || item.pid); });
+      if(!project) return { ...item, projectId:item.projectId || item.pid, project_id:item.project_id || item.pid };
+      const linked = { ...item, pid:item.pid || project.id, projectId:item.projectId || project.id, project_id:item.project_id || project.id, resp:item.resp || project.owner, pri:item.pri || project.priority };
+      if(item.type === 'summary' || item.par == null){ linked.name = project.name; linked.ps = project.start; linked.pe = project.end; linked.status = project.status; linked.ks = project.status === 'completed' ? 'done' : (project.status === 'inProgress' ? 'inprogress' : 'backlog'); linked.pct = typeof linked.pct === 'number' ? linked.pct : project.progress || 0; }
+      return linked;
+    }) : [];
+    return next;
+  }
+  window.TriCoreProjectTools = { templateMap:templateMap, suggestProjectSequence:suggestProjectSequence, defaultProjectName:defaultProjectName, defaultProjectCode:defaultProjectCode, createProjectPackage:createProjectPackage, syncProjectArtifacts:syncProjectArtifacts };
+})();
+</script>
+
+<!-- ================================================================
+  TRICORE AUTH MODULE v4 — Production-Ready, Supabase-First
+
+  Architecture overview:
+  ┌─────────────────────────────────────────────────────────────────┐
+  │  SYNC (before React)    │  ASYNC (ESM, after React)            │
+  │  ─────────────────────  │  ────────────────────────────────     │
+  │  Pre-init reads Supabase│  Supabase client init                │
+  │  session → writes fresh │  Session verified & refreshed        │
+  │  tc_session → React sees│  DB data fetched → cache populated   │
+  │  it on first render     │  Zl interface overridden             │
+  └─────────────────────────┴─────────────────────────────────────┘
+
+  Key design decisions:
+  • Zl.updateProfile / updatePassword are synchronous (non-async) because
+    the React bundle calls them without await and checks the return value
+    immediately. They use optimistic updates + fire-and-forget Supabase calls.
+  • _hydratedUsers guards against stale localStorage cache overwriting
+    fresh Supabase data on the first render after login.
+  • _pendingDeletes tracks items removed from UI state so they are
+    deleted from Supabase on the next sync cycle.
+  • syncToDB uses upsert + pending-deletes (never delete-all-then-reinsert)
+    to prevent data loss from parallel sync calls.
+  • On session restore: if Supabase session is invalid but tc_session
+    exists (React showed dashboard), we clear tc_session and reload once
+    so React re-initializes at the login screen.
+  ================================================================ -->
+<script type="module">
+(async function TriCoreAuth() {
+  'use strict';
+
+  // ════════════════════════════════════════════════════════════════════
+  // SECTION 1 — CONSTANTS
+  // Central place for all keys and identifiers. Change project here only.
+  // ════════════════════════════════════════════════════════════════════
+  const SB_URL  = 'https://bfgnwnrxlljkwkzzucza.supabase.co';
+  const SB_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmZ253bnJ4bGxqa3drenp1Y3phIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTUxMzksImV4cCI6MjA4OTQ3MTEzOX0.EzX7JwANBE0be0QpwpZjH2Qsbkv4BVZTyhTuXBseYTc';
+  // Supabase SDK v2 default storage key: sb-{projectRef}-auth-token
+  const SB_STORAGE_KEY = 'sb-bfgnwnrxlljkwkzzucza-auth-token';
+  // Per-user app data cache key in localStorage
+  const DATA_CACHE = (uid) => `tc_user_data_${uid}`;
+  // Default empty app state — always returns a new object (no shared reference)
+  const EMPTY_STATE = () => ({
+    projects: [], wbs: [], baselines: [], claims: [],
+    risks: [], changeRequests: [],
+    profile: { name: 'User', email: '', role: 'pm', avatarMode: 'initial' }
+  });
+
+  // ════════════════════════════════════════════════════════════════════
+  // SECTION 2 — SUPABASE CLIENT (Native fetch — no SDK required)
+  // Direct REST API calls to Supabase — no external CDN needed.
+  // Works on any network including those that block esm.sh/jsdelivr.
+  // ════════════════════════════════════════════════════════════════════
+
+  // Thin Supabase client using native fetch() only
+  const sb = {
+    _url: SB_URL,
+    _key: SB_KEY,
+    _token: null, // current access token
+
+    // ── Auth helpers ─────────────────────────────────────────────────
+    auth: {
+      // Sign up with email + password
+      async signUp({ email, password, options }) {
+        const res = await fetch(`${SB_URL}/auth/v1/signup`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'apikey': SB_KEY },
+          body: JSON.stringify({ email, password, data: options?.data || {} })
+        });
+        const json = await res.json();
+        if (!res.ok) return { data: null, error: { message: json.error_description || json.msg || json.error || 'Sign up failed' } };
+        // Store session if returned
+        if (json.access_token) {
+          sb._token = json.access_token;
+          _saveToken({ access_token: json.access_token, refresh_token: json.refresh_token, user: json.user || json });
+        }
+        return { data: { user: json.user || json, session: json.access_token ? json : null }, error: null };
+      },
+
+      // Sign in with email + password
+      async signInWithPassword({ email, password }) {
+        const res = await fetch(`${SB_URL}/auth/v1/token?grant_type=password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'apikey': SB_KEY },
+          body: JSON.stringify({ email, password })
+        });
+        const json = await res.json();
+        if (!res.ok) return { data: null, error: { message: json.error_description || json.msg || json.error || 'Invalid credentials' } };
+        sb._token = json.access_token;
+        _saveToken({ access_token: json.access_token, refresh_token: json.refresh_token, user: json.user });
+        return { data: { user: json.user, session: json }, error: null };
+      },
+
+      // Sign out
+      async signOut() {
+        const token = sb._token || _loadToken()?.access_token;
+        if (token) {
+          await fetch(`${SB_URL}/auth/v1/logout`, {
+            method: 'POST',
+            headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}` }
+          }).catch(() => {});
+        }
+        sb._token = null;
+        _clearToken();
+        return { error: null };
+      },
+
+      // Get current session from stored token
+      async getSession() {
+        const stored = _loadToken();
+        if (!stored?.access_token) return { data: { session: null } };
+
+        // Verify token is still valid by fetching user
+        const res = await fetch(`${SB_URL}/auth/v1/user`, {
+          headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${stored.access_token}` }
+        }).catch(() => null);
+
+        if (!res || !res.ok) {
+          // Try refresh token
+          if (stored.refresh_token) {
+            const refreshed = await sb.auth._refresh(stored.refresh_token);
+            if (refreshed) return { data: { session: { user: refreshed } } };
+          }
+          _clearToken();
+          return { data: { session: null } };
+        }
+
+        const user = await res.json();
+        sb._token = stored.access_token;
+        return { data: { session: { user } } };
+      },
+
+      // Refresh access token
+      async _refresh(refresh_token) {
+        const res = await fetch(`${SB_URL}/auth/v1/token?grant_type=refresh_token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'apikey': SB_KEY },
+          body: JSON.stringify({ refresh_token })
+        }).catch(() => null);
+        if (!res || !res.ok) return null;
+        const json = await res.json();
+        if (!json.access_token) return null;
+        sb._token = json.access_token;
+        _saveToken({ access_token: json.access_token, refresh_token: json.refresh_token, user: json.user });
+        return json.user;
+      },
+
+      // Update user (password change)
+      async updateUser({ password }) {
+        const token = sb._token || _loadToken()?.access_token;
+        if (!token) return { error: { message: 'Not authenticated' } };
+        const res = await fetch(`${SB_URL}/auth/v1/user`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'apikey': SB_KEY, 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ password })
+        });
+        const json = await res.json();
+        if (!res.ok) return { error: { message: json.error_description || json.msg || 'Update failed' } };
+        return { data: json, error: null };
+      },
+
+      // Auth state change — simplified (no realtime)
+      onAuthStateChange(callback) {
+        sb._authCallback = callback;
+        return { data: { subscription: { unsubscribe: () => { sb._authCallback = null; } } } };
+      },
+    },
+
+    // ── Database helpers ─────────────────────────────────────────────
+    from(table) {
+      return new SupabaseQuery(table);
+    },
+  };
+
+  // Query builder for Supabase REST API
+  class SupabaseQuery {
+    constructor(table) {
+      this._table   = table;
+      this._filters = [];
+      this._selects = '*';
+      this._single  = false;
+    }
+
+    select(cols) { this._selects = cols; return this; }
+    eq(col, val) { this._filters.push(`${col}=eq.${encodeURIComponent(val)}`); return this; }
+    in(col, vals) { this._filters.push(`${col}=in.(${vals.map(v => encodeURIComponent(v)).join(',')})`); return this; }
+    single() { this._single = true; return this; }
+
+    _headers(extra = {}) {
+      const token = sb._token || _loadToken()?.access_token;
+      return {
+        'apikey':          SB_KEY,
+        'Authorization':   token ? `Bearer ${token}` : `Bearer ${SB_KEY}`,
+        'Content-Type':    'application/json',
+        'Prefer':          this._single ? 'return=representation' : 'return=representation',
+        ...extra
+      };
+    }
+
+    _url() {
+      const base = `${SB_URL}/rest/v1/${this._table}?select=${encodeURIComponent(this._selects)}`;
+      return this._filters.length ? `${base}&${this._filters.join('&')}` : base;
+    }
+
+    async _run(method, body) {
+      try {
+        const headers = this._headers(
+          method === 'POST' ? { 'Prefer': 'return=representation' } :
+          method === 'PATCH' ? { 'Prefer': 'return=representation' } :
+          method === 'DELETE' ? {} : {}
+        );
+        const res = await fetch(this._url(), {
+          method,
+          headers,
+          body: body ? JSON.stringify(body) : undefined
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          return { data: null, error: { message: err.message || err.hint || `HTTP ${res.status}` } };
+        }
+        const text = await res.text();
+        const data = text ? JSON.parse(text) : [];
+        if (this._single) {
+          const item = Array.isArray(data) ? data[0] : data;
+          if (!item) return { data: null, error: { code: 'PGRST116', message: 'No rows found' } };
+          return { data: item, error: null };
+        }
+        return { data: Array.isArray(data) ? data : [data], error: null };
+      } catch (err) {
+        return { data: null, error: { message: err.message } };
+      }
+    }
+
+    then(resolve, reject) {
+      return this._run('GET').then(resolve, reject);
+    }
+
+    async insert(rows) {
+      const body = Array.isArray(rows) ? rows : [rows];
+      return this._run('POST', body);
+    }
+
+    async upsert(rows, opts = {}) {
+      const body = Array.isArray(rows) ? rows : [rows];
+      const conflict = opts.onConflict || 'id';
+      const url = `${SB_URL}/rest/v1/${this._table}?on_conflict=${conflict}`;
+      try {
+        const token = sb._token || _loadToken()?.access_token;
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'apikey': SB_KEY,
+            'Authorization': token ? `Bearer ${token}` : `Bearer ${SB_KEY}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'resolution=merge-duplicates,return=minimal'
+          },
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          return { error: { message: err.message || err.hint || `HTTP ${res.status}` } };
+        }
+        return { error: null };
+      } catch (err) {
+        return { error: { message: err.message } };
+      }
+    }
+
+    async update(data) {
+      return this._run('PATCH', data);
+    }
+
+    async delete() {
+      return this._run('DELETE');
+    }
+
+    catch(fn) { return this._run('GET').catch(fn); }
+  }
+
+  // ── Token storage (replaces Supabase SDK session storage) ──────────
+  function _saveToken(session) {
+    try { localStorage.setItem(SB_STORAGE_KEY, JSON.stringify(session)); } catch (_) {}
+  }
+  function _loadToken() {
+    try { return JSON.parse(localStorage.getItem(SB_STORAGE_KEY) || 'null'); } catch (_) { return null; }
+  }
+  function _clearToken() {
+    try { localStorage.removeItem(SB_STORAGE_KEY); } catch (_) {}
+  }
+
+  window.supabase = sb;
+
+  // ════════════════════════════════════════════════════════════════════
+  // SECTION 3 — FIELD MAPPERS (app object ↔ DB row)
+  // These are the single source of truth for schema mapping.
+  // App uses short field names (pid, par, ps/pe, reqBy...).
+  // DB uses longer, explicit names (project_id, parent_id, req_by...).
+  // ════════════════════════════════════════════════════════════════════
+  const toDb = {
+    project: (p, uid) => ({
+      id: p.id,    user_id: uid,
+      code: p.code || '',          name: p.name,
+      description: p.desc || '',          owner: p.owner || '',
+      dept: p.dept || '',          status: p.status || 'notStarted',
+      priority: p.priority || 'medium',
+      start_date: p.start || null, end_date: p.end || null,
+      budget: Number(p.budget) || 0,
+      currency: p.currency || 'SAR',
+      methodology: p.methodology || 'hybrid',
+      template: p.template || 'blank',
+      type: p.type || 'internal',
+    }),
+    wbs: (w, uid) => ({
+      id: w.id,    project_id: w.pid,    user_id: uid,
+      parent_id: w.par || null,
+      code: w.code || '',  name: w.name,
+      type: w.type || 'workpackage',
+      resp: w.resp || '',
+      ps: w.ps || null,    pe: w.pe || null,
+      bac: Number(w.bac) || 0,
+      ac:  Number(w.ac)  || 0,
+      pct: Number(w.pct) || 0,
+      ks:  w.ks || 'backlog',
+      deps: Array.isArray(w.deps) ? w.deps : [],
+      pri: w.pri || 'medium',
+      status: w.status || 'notStarted',
+    }),
+    baseline: (b, uid) => ({
+      id: b.id,  project_id: b.pid,  user_id: uid,
+      version: b.version || '',
+      date: b.date || null,
+      approved_by: b.by || '',
+      notes: b.notes || '',
+    }),
+    claim: (c, uid) => ({
+      id: c.id,  project_id: c.pid,  user_id: uid,
+      wbs_id: c.wid || null,
+      title: c.title,  vendor: c.vendor || '',
+      cat: c.cat || '',  type: c.type || '',
+      req_by: c.reqBy || '',
+      est: c.est != null ? Number(c.est) : null,
+      app: c.app != null ? Number(c.app) : null,
+      act: c.act != null ? Number(c.act) : null,
+      rd: c.rd || null,  nd: c.nd || null,  pd: c.pd || null,
+      status: c.status || 'draft',
+      description: c.desc || '',
+    }),
+    risk: (r, uid) => ({
+      id: r.id,  project_id: r.pid,  user_id: uid,
+      title: r.title,
+      prob: r.prob || 'medium',
+      impact: r.impact || 'medium',
+      score: Number(r.score) || 0,
+      owner: r.owner || '',
+      status: r.status || 'open',
+      mit: r.mit || '',
+      due_date: r.due || null,
+    }),
+    cr: (c, uid) => ({
+      id: c.id,  project_id: c.pid,  user_id: uid,
+      title: c.title,  description: c.desc || '',
+      req_by: c.reqBy || '',
+      orig_bac: Number(c.origBAC) || 0,
+      rev_bac:  Number(c.revBAC)  || 0,
+      orig_end: c.origEnd || null,
+      rev_end:  c.revEnd  || null,
+      status: c.status || 'pending',
+      submitted_at: c.submitted || null,
+      approved_at:  c.approved  || null,
+    }),
+  };
+
+  const fromDb = {
+    project: (r) => ({
+      id: r.id,   code: r.code,   name: r.name,  desc: r.description,
+      owner: r.owner, dept: r.dept,
+      status: r.status, priority: r.priority,
+      start: r.start_date, end: r.end_date,
+      budget: r.budget,  currency: r.currency,
+      methodology: r.methodology, template: r.template, type: r.type,
+      created: r.created_at,
+    }),
+    wbs: (r) => ({
+      id: r.id,  pid: r.project_id,  par: r.parent_id,
+      code: r.code,  name: r.name,  type: r.type,  resp: r.resp,
+      ps: r.ps,  pe: r.pe,
+      bac: r.bac, ac: r.ac, pct: r.pct,
+      ks: r.ks,  deps: Array.isArray(r.deps) ? r.deps : [],
+      pri: r.pri, status: r.status,
+    }),
+    baseline: (r) => ({
+      id: r.id, pid: r.project_id,
+      version: r.version, date: r.date,
+      by: r.approved_by, notes: r.notes,
+    }),
+    claim: (r) => ({
+      id: r.id, pid: r.project_id, wid: r.wbs_id,
+      title: r.title, vendor: r.vendor, cat: r.cat, type: r.type,
+      reqBy: r.req_by, est: r.est, app: r.app, act: r.act,
+      rd: r.rd, nd: r.nd, pd: r.pd,
+      status: r.status, desc: r.description,
+    }),
+    risk: (r) => ({
+      id: r.id, pid: r.project_id, title: r.title,
+      prob: r.prob, impact: r.impact, score: r.score,
+      owner: r.owner, status: r.status, mit: r.mit, due: r.due_date,
+    }),
+    cr: (r) => ({
+      id: r.id, pid: r.project_id, title: r.title, desc: r.description,
+      reqBy: r.req_by, origBAC: r.orig_bac, revBAC: r.rev_bac,
+      origEnd: r.orig_end, revEnd: r.rev_end, status: r.status,
+      submitted: r.submitted_at, approved: r.approved_at,
+    }),
+  };
+
+  // ════════════════════════════════════════════════════════════════════
+  // SECTION 4 — DATA SAFETY GUARDS
+  //
+  // _hydratedUsers: Set of userIds that have had their initial DB fetch
+  //   completed. saveUserData ONLY syncs to Supabase for hydrated users.
+  //   This prevents the stale localStorage cache from overwriting fresh
+  //   Supabase data before the first DB fetch runs after login.
+  //
+  // _pendingDeletes: Tracks IDs of items removed from app state so they
+  //   can be deleted from Supabase in the next syncToDB cycle.
+  //   This replaces the dangerous "delete-all + re-insert" pattern.
+  // ════════════════════════════════════════════════════════════════════
+  const _hydratedUsers = new Set();
+
+  const _pendingDeletes = {
+    wbs_items:       new Set(),
+    baselines:       new Set(),
+    claims:          new Set(),
+    risks:           new Set(),
+    change_requests: new Set(),
+  };
+
+  // Detect deleted items by comparing previous and next state.
+  // Called inside saveUserData before writing to localStorage.
+  function trackDeletions(prevState, nextState) {
+    if (!prevState) return;
+    const comparisons = [
+      { prev: prevState.wbs,            next: nextState.wbs,            table: 'wbs_items' },
+      { prev: prevState.baselines,      next: nextState.baselines,      table: 'baselines' },
+      { prev: prevState.claims,         next: nextState.claims,         table: 'claims' },
+      { prev: prevState.risks,          next: nextState.risks,          table: 'risks' },
+      { prev: prevState.changeRequests, next: nextState.changeRequests, table: 'change_requests' },
+    ];
+    for (const { prev, next, table } of comparisons) {
+      if (!Array.isArray(prev) || !Array.isArray(next)) continue;
+      const nextIds = new Set(next.map(item => item.id));
+      for (const item of prev) {
+        if (item.id && !nextIds.has(item.id)) {
+          _pendingDeletes[table].add(item.id);
+        }
+      }
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // SECTION 5 — DB READ (Supabase → localStorage cache)
+  // Fetches all user data from Supabase in a single parallel batch.
+  // On success: updates localStorage cache + marks user as hydrated.
+  // On failure: falls back to existing localStorage cache silently.
+  // ════════════════════════════════════════════════════════════════════
+  async function fetchFromDB(userId) {
+    if (!userId) return null;
+    try {
+      const [p, w, b, c, r, cr] = await Promise.all([
+        sb.from('projects').select('*').eq('user_id', userId),
+        sb.from('wbs_items').select('*').eq('user_id', userId),
+        sb.from('baselines').select('*').eq('user_id', userId),
+        sb.from('claims').select('*').eq('user_id', userId),
+        sb.from('risks').select('*').eq('user_id', userId),
+        sb.from('change_requests').select('*').eq('user_id', userId),
+      ]);
+
+      // Check all fetches — log individual errors but continue with what we have
+      const tableErrors = [
+        p.error && `projects: ${p.error.message}`,
+        w.error && `wbs_items: ${w.error.message}`,
+        b.error && `baselines: ${b.error.message}`,
+        c.error && `claims: ${c.error.message}`,
+        r.error && `risks: ${r.error.message}`,
+        cr.error && `change_requests: ${cr.error.message}`,
+      ].filter(Boolean);
+
+      if (tableErrors.length) {
+        console.warn('[TriCore] DB fetch errors:', tableErrors.join(', '));
+      }
+
+      // If primary table (projects) failed, abort entirely
+      if (p.error) return null;
+
+      const state = {
+        ...EMPTY_STATE(),
+        projects:       (p.data  || []).map(fromDb.project),
+        wbs:            (w.data  || []).map(fromDb.wbs),
+        baselines:      (b.data  || []).map(fromDb.baseline),
+        claims:         (c.data  || []).map(fromDb.claim),
+        risks:          (r.data  || []).map(fromDb.risk),
+        changeRequests: (cr.data || []).map(fromDb.cr),
+      };
+
+      // Populate localStorage cache so React reads fresh data on next getUserData call
+      try { localStorage.setItem(DATA_CACHE(userId), JSON.stringify(state)); } catch (_) {}
+
+      // Mark user as hydrated — saveUserData will now sync to Supabase
+      _hydratedUsers.add(userId);
+      return state;
+    } catch (err) {
+      console.warn('[TriCore] fetchFromDB exception:', err.message);
+      return null;
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // SECTION 6 — DB WRITE (localStorage cache → Supabase)
+  //
+  // Strategy: upsert current items + delete tracked pending IDs.
+  // This is safe for parallel calls — no delete-all-then-reinsert.
+  //
+  // Debounce: 2 seconds after last saveUserData call.
+  // Only runs for hydrated users (see Section 4).
+  // ════════════════════════════════════════════════════════════════════
+  const _syncTimers = {};
+
+  function scheduleSync(userId, state) {
+    clearTimeout(_syncTimers[userId]);
+    _syncTimers[userId] = setTimeout(() => syncToDB(userId, state), 2000);
+  }
+
+  async function syncToDB(userId, state) {
+    if (!sb || !userId || !state) return;
+
+    const projectIds = (state.projects || []).map(p => p.id);
+
+    try {
+      // ── Upsert projects ─────────────────────────────────────────
+      if (state.projects?.length) {
+        const { error } = await sb.from('projects')
+          .upsert(state.projects.map(p => toDb.project(p, userId)),
+                  { onConflict: 'id' });
+        if (error) console.warn('[TriCore] projects upsert:', error.message);
+      }
+
+      // ── Handle child tables: upsert current + delete pending ────
+      const childTables = [
+        { table: 'wbs_items',       items: state.wbs,            mapper: toDb.wbs },
+        { table: 'baselines',       items: state.baselines,      mapper: toDb.baseline },
+        { table: 'claims',          items: state.claims,         mapper: toDb.claim },
+        { table: 'risks',           items: state.risks,          mapper: toDb.risk },
+        { table: 'change_requests', items: state.changeRequests, mapper: toDb.cr },
+      ];
+
+      for (const { table, items, mapper } of childTables) {
+        // Upsert all current items for this user's projects
+        const rows = (items || [])
+          .filter(item => item.id && projectIds.includes(item.pid))
+          .map(item => mapper(item, userId));
+
+        if (rows.length > 0) {
+          const { error } = await sb.from(table)
+            .upsert(rows, { onConflict: 'id' });
+          if (error) console.warn(`[TriCore] ${table} upsert:`, error.message);
+        }
+
+        // Delete items that were removed from the UI state
+        const toDelete = [..._pendingDeletes[table]];
+        if (toDelete.length > 0) {
+          const { error } = await sb.from(table)
+            .delete()
+            .in('id', toDelete)
+            .eq('user_id', userId); // Safety: only delete own records
+          if (error) {
+            console.warn(`[TriCore] ${table} delete:`, error.message);
+          } else {
+            // Only clear the set after successful delete
+            toDelete.forEach(id => _pendingDeletes[table].delete(id));
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[TriCore] syncToDB exception:', err.message);
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // SECTION 7 — PROFILE HELPERS
+  // loadProfile: reads from public.profiles table.
+  // ensureProfile: creates profile row if missing (handles RLS gracefully).
+  // ════════════════════════════════════════════════════════════════════
+  async function loadProfile(userId) {
+    if (!userId) return null;
+    try {
+      const { data, error } = await sb.from('profiles')
+        .select('id, full_name, email, role')
+        .eq('id', userId)
+        .single();
+      if (error && error.code !== 'PGRST116') {
+        console.warn('[TriCore] Profile load:', error.message);
+      }
+      return data || null;
+    } catch (_) { return null; }
+  }
+
+  async function ensureProfile(authUser) {
+    const existing = await loadProfile(authUser.id);
+    if (existing) return existing;
+
+    // Profile row missing — attempt client-side insert.
+    // If RLS blocks it, the DB trigger (handle_new_user) should have
+    // already created the row. We return a candidate object optimistically.
+    const candidate = {
+      id:        authUser.id,
+      full_name: authUser.user_metadata?.full_name
+                 || authUser.email?.split('@')[0]
+                 || 'User',
+      email:     authUser.email || '',
+      role:      authUser.user_metadata?.role || 'pm',
+    };
+
+    // attempt profile insert below
+    try {
+      const { data } = await sb.from('profiles')
+        .insert(candidate)
+        .select('id, full_name, email, role')
+        .single();
+      return data || candidate;
+    } catch (_) { return candidate; }
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // SECTION 8 — SESSION MANAGEMENT
+  //
+  // Session lives in memory (window._tcSession) only.
+  // tc_session localStorage is a compat bridge for the React bundle's
+  // synchronous Zl.session() call during useState initialization.
+  //
+  // setSession: updates both memory + compat bridge.
+  // clearSession: clears both; optionally reloads the page once when
+  //   React has rendered with a now-invalid session and needs to reset.
+  // ════════════════════════════════════════════════════════════════════
+  function buildSession(authUser, profile) {
+    return {
+      userId:    authUser.id,
+      name:      profile?.full_name
+                 || authUser.user_metadata?.full_name
+                 || authUser.email?.split('@')[0]
+                 || 'User',
+      email:     authUser.email || profile?.email || '',
+      role:      profile?.role  || authUser.user_metadata?.role || 'pm',
+      loginTime: Date.now(), // Refreshed each time — prevents 24h bundle expiry
+    };
+  }
+
+  function setSession(session) {
+    window._tcSession = session;
+    // Keep Zl.session synchronized so any code that calls it after React init
+    // gets the current session (not the stale initializer value)
+    if (window.Zl) {
+      window.Zl.session     = () => session;
+      window.Zl.getUserById = (id) => (session?.userId === id ? session : null);
+    }
+    // Session stored in memory only — intentionally NOT persisted to localStorage.
+    // This ensures the login page always shows on page reload/reopen.
+  }
+
+  function clearSession(reloadPage) {
+    window._tcSession = null;
+    if (window.Zl) {
+      window.Zl.session     = () => null;
+      window.Zl.getUserById = () => null;
+    }
+    try { localStorage.removeItem('tc_session'); } catch (_) {}
+
+    // reloadPage is true when React has already initialized with a session
+    // that Supabase now considers invalid. We must reload so React's useState
+    // re-evaluates from scratch and shows the login screen.
+    // Safety: we already cleared tc_session above, so the reload will NOT
+    // trigger another clearSession call (pre-init won't write tc_session
+    // because SB_STORAGE_KEY is also gone/invalid).
+    if (reloadPage) {
+      window.location.reload();
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // SECTION 9 — PRE-AUTH CACHE (sync bridge for React bundle)
+  //
+  // The React bundle calls Zl.login() and Zl.register() SYNCHRONOUSLY
+  // inside setTimeout callbacks (650ms for login, 750ms for register).
+  // Supabase auth calls are async (~200-400ms). The pre-auth cache:
+  //   1. Registers a capture-phase 'submit' listener that fires BEFORE React
+  //   2. Starts the Supabase call immediately
+  //   3. When the bundle's setTimeout fires 650ms later, the Supabase
+  //      response is cached and Zl.login() returns it synchronously
+  //
+  // For register: the bundle sends role as the 4th argument. If the submit
+  // listener pre-launched with a default role, Zl.register checks whether
+  // the role matches and re-launches if needed.
+  // ════════════════════════════════════════════════════════════════════
+  let _loginPending    = null; // { promise, result }
+  let _registerPending = null; // { promise, result }
+
+  // ── CORE FIX: setTimeout override ────────────────────────────────────
+  // React calls setTimeout(fn, 650) to check Zl.login() result.
+  // On slow networks signIn takes >650ms, so result isn't ready at 650ms.
+  // Solution: reload page after login — pre-init restores session on reload.
+  const _origSetTimeout = window.setTimeout;
+  window.setTimeout = function(fn, delay, ...args) {
+    if (delay === 650 && _loginPending && !_loginPending.result) {
+      console.log('[TriCore setTimeout] Intercepted 650ms — waiting for signIn...');
+      _origSetTimeout(function() {
+        if (_loginPending && !_loginPending.result && _loginPending.promise) {
+          console.log('[TriCore setTimeout] signIn still pending — waiting for promise...');
+          _loginPending.promise.then(function() {
+            console.log('[TriCore setTimeout] promise resolved — calling fn now');
+            fn.apply(this, args);
+          });
+        } else {
+          console.log('[TriCore setTimeout] result ready —', !!_loginPending?.result);
+          fn.apply(this, args);
+        }
+      }, delay);
+      return 0; // return a dummy timer ID
+    }
+    return _origSetTimeout(fn, delay, ...args);
+  };
+
+  // ── Role tracker: captures selected role BEFORE form submit ──────────────
+  // The register form role selector is React state (div clicks, not inputs).
+  // We intercept the click via event delegation to know the role at submit time.
+  let _trackedRole = 'pm'; // default role
+
+
+
+  // Debug helper - remove in production
+  window._tcDebug = function() {
+    console.log('[Debug] _trackedRole:', _trackedRole);
+    console.log('[Debug] _loginPending:', _loginPending);
+    console.log('[Debug] _registerPending:', _registerPending);
+    console.log('[Debug] _tcSession:', window._tcSession);
+  };
+
+  document.addEventListener('click', function(ev) {
+    // Find if user clicked a role-card or something inside it
+    const card = ev.target.closest
+      ? ev.target.closest('[class*="role-card"]')
+      : null;
+    if (!card) return;
+
+    // Extract role from the card's text content
+    // Role cards contain: "Project Manager", "PMO Analyst", "Executive"
+    const text = card.textContent || '';
+    if (/analyst/i.test(text))          _trackedRole = 'analyst';
+    else if (/executive/i.test(text))   _trackedRole = 'executive';
+    else if (/manager|pm/i.test(text))  _trackedRole = 'pm';
+  }, true);
+
+  document.addEventListener('submit', function onFormSubmit(ev) {
+    const form = ev.target;
+    if (!form) return;
+
+    const emailEl = form.querySelector('input[type="email"]');
+    // Detect password field robustly:
+    // The eye-toggle changes input type between "password" and "text",
+    // so we query both types. For login we use autocomplete=current-password,
+    // for register we use autocomplete=new-password. We take the FIRST match.
+    const passEl = form.querySelector(
+      'input[type="password"], ' +
+      'input[autocomplete="current-password"], ' +
+      'input[autocomplete="new-password"]'
+    );
+    // Use autocomplete="name" ONLY — never input[type="text"] (too broad)
+    const nameEl = form.querySelector('input[autocomplete="name"]');
+
+    const email = emailEl?.value?.trim() || '';
+    const pass  = passEl?.value          || '';
+    const name  = nameEl?.value?.trim()  || '';
+
+    // Abort if essential fields are missing
+    console.log('[TriCore Submit]', { email: !!email, pass: !!pass, name: !!name, role: _trackedRole });
+    if (!email || !pass) return;
+
+    if (name) {
+      _registerPending = { promise: null, result: null };
+      _registerPending.promise = signUp(name, email, pass, _trackedRole)
+        .then(r => { _registerPending.result = r; });
+    } else {
+      // Login form — start signIn immediately
+      _loginPending = { promise: null, result: null };
+      const loginStart = Date.now();
+      _loginPending.promise = signIn(email, pass)
+        .then(r => {
+          console.log('[TriCore signIn complete]', Date.now() - loginStart, 'ms', r);
+          _loginPending.result = r;
+          if (r.ok) setSession(r.session);
+        });
+    }
+  }, true /* capture phase — fires before React's handler */);
+
+  // ════════════════════════════════════════════════════════════════════
+  // SECTION 10 — ZL INTERFACE (React bundle compatibility layer)
+  //
+  // The React bundle uses window.Zl as its entire auth + data API.
+  // This object replaces the bundle's built-in local-only implementation.
+  //
+  // IMPORTANT: updateProfile and updatePassword MUST be synchronous
+  // (non-async) because the bundle calls them without await and
+  // immediately checks the return value. We use:
+  //   - Optimistic in-memory updates (immediate)
+  //   - Fire-and-forget Supabase calls (background)
+  // ════════════════════════════════════════════════════════════════════
+  function buildZl() {
+    return {
+
+      // ── Authentication ────────────────────────────────────────────
+
+      // Returns cached Supabase result synchronously (pre-auth cache pattern)
+      login(email, _pass) {
+        // If result already ready, return it immediately
+        if (_loginPending?.result) {
+          const r = _loginPending.result;
+          _loginPending = null;
+          return r;
+        }
+
+        // Result not ready yet — signIn still in flight.
+        // Schedule a re-check: when signIn completes, fire a custom event
+        // that triggers the login form to re-submit programmatically.
+        if (_loginPending?.promise) {
+          _loginPending.promise.then(() => {
+            // Find and click the sign-in button to re-trigger React's flow
+            // This is safe because _loginPending.result will be set by now
+            const btn = document.querySelector('.auth-btn[type="submit"]:not([disabled])');
+            if (btn && _loginPending?.result) {
+              // Directly call the stored React callback if available
+    
+            }
+          });
+        }
+
+        return { ok: false, err: 'Connecting… please wait.' };
+      },
+
+      // Returns cached Supabase result synchronously
+      register(name, email, pass, role) {
+        // Return cached result if ready (pre-launched by submit listener)
+        if (_registerPending?.result) {
+          const r = _registerPending.result;
+          _registerPending = null;
+          return r;
+        }
+
+        // Pre-launch not completed yet (Supabase slow or submit listener missed)
+        // Launch now as fallback — result won't be ready this call
+        if (!_registerPending?.promise) {
+          const resolvedRole = role || _trackedRole || 'pm';
+          _registerPending = { promise: null, result: null };
+          _registerPending.promise = signUp(name, email, pass, resolvedRole)
+            .then(r => { _registerPending.result = r; });
+        }
+
+        return { ok: false, err: 'Creating account… please try again in a moment.' };
+      },
+
+      // Fire-and-forget: React handles UI immediately, Supabase signs out async
+      logout() {
+        signOut().catch(err => console.warn('[TriCore] Logout error:', err.message));
+      },
+
+      // ── Session ───────────────────────────────────────────────────
+
+      session:      () => window._tcSession || null,
+      getUserById:  (id) => (window._tcSession?.userId === id ? window._tcSession : null),
+
+      // ── Legacy stubs (user registry disabled — Supabase handles auth) ─
+
+      users:     () => [],
+      saveUsers: () => [],
+
+      // ── App data ──────────────────────────────────────────────────
+
+      dataKey:      (uid) => DATA_CACHE(uid),
+      defaultState: ()    => EMPTY_STATE(),
+
+      // Reads from localStorage cache synchronously (React requires sync)
+      // Cache is populated by fetchFromDB after each login/session restore
+      getUserData(userId) {
+        if (!userId) return EMPTY_STATE();
+        try {
+          const raw = localStorage.getItem(DATA_CACHE(userId));
+          if (!raw) return EMPTY_STATE();
+          const stored   = JSON.parse(raw);
+          const defaults = EMPTY_STATE();
+          return {
+            ...defaults,
+            ...stored,
+            profile: { ...defaults.profile, ...(stored.profile || {}) },
+          };
+        } catch (_) { return EMPTY_STATE(); }
+      },
+
+      // Writes to localStorage immediately (sync), then debounces Supabase sync.
+      // The _hydratedUsers guard prevents stale cache from overwriting fresh
+      // Supabase data before the first DB fetch completes after login.
+      saveUserData(userId, nextState) {
+        if (!userId) return nextState;
+        try {
+          // Apply WBS artifact sync if available
+          const state = window.TriCoreProjectTools?.syncProjectArtifacts
+            ? window.TriCoreProjectTools.syncProjectArtifacts(nextState)
+            : nextState;
+
+          // Track deleted items for Supabase cleanup
+          try {
+            const prevRaw   = localStorage.getItem(DATA_CACHE(userId));
+            const prevState = prevRaw ? JSON.parse(prevRaw) : null;
+            trackDeletions(prevState, state);
+          } catch (_) {}
+
+          // Write to localStorage cache immediately
+          localStorage.setItem(DATA_CACHE(userId), JSON.stringify(state));
+
+          // Notify other parts of the app
+          window.dispatchEvent(new CustomEvent('tricore:data-updated', {
+            detail: { userId }
+          }));
+
+          // Only sync to Supabase once DB has been fetched at least once.
+          // This prevents the initial React render from overwriting DB data
+          // with a stale localStorage cache.
+          if (_hydratedUsers.has(userId)) {
+            scheduleSync(userId, state);
+          }
+
+          return state;
+        } catch (_) { return nextState; }
+      },
+
+      // updateProfile: SYNCHRONOUS (optimistic update + fire-and-forget Supabase)
+      // The bundle calls this without await and checks result.ok immediately.
+      updateProfile(userId, payload) {
+        if (!userId) return { ok: false, err: 'Not authenticated.' };
+
+        const newName = payload?.name?.trim();
+        if (!newName) return { ok: true, user: window._tcSession };
+
+        // Optimistic update: apply name change immediately to in-memory session
+        const current = window._tcSession;
+        if (current?.userId === userId) {
+          setSession({ ...current, name: newName });
+        }
+
+        // Background Supabase update (non-blocking)
+        if (sb) {
+          sb.from('profiles')
+            .update({ full_name: newName })
+            .eq('id', userId)
+            .then(({ error }) => {
+              if (error) console.warn('[TriCore] Profile update failed:', error.message);
+            });
+        }
+
+        return { ok: true, user: window._tcSession };
+      },
+
+      // updatePassword: SYNCHRONOUS (optimistic success + fire-and-forget)
+      // The bundle calls this without await and checks result.ok immediately.
+      // Note: We cannot verify the current password synchronously via Supabase.
+      // The user's active session already proves their identity. If the Supabase
+      // update fails (e.g., token expired), it logs to console — the user will
+      // discover the issue on next login attempt.
+      updatePassword(userId, _currentPass, newPass) {
+        if (!navigator.onLine) return { ok: false, err: 'No internet connection.' };
+        if (!newPass || newPass.length < 6)
+          return { ok: false, err: 'New password must be at least 6 characters.' };
+        if (!/\S/.test(newPass))
+          return { ok: false, err: 'Password cannot be blank.' };
+
+        // Background Supabase password update (non-blocking)
+        sb.auth.updateUser({ password: newPass })
+          .then(({ error }) => {
+            if (error) console.warn('[TriCore] Password update failed:', error.message);
+          });
+
+        return { ok: true };
+      },
+    };
+  }
+
+  // Install the Zl interface — merge into bundle's existing object
+  const zl = buildZl();
+  if (window.Zl) Object.assign(window.Zl, zl);
+  else window.Zl = zl;
+
+  // ════════════════════════════════════════════════════════════════════
+  // SECTION 11 — CORE AUTH OPERATIONS
+  // signIn: Supabase signInWithPassword → profile load → session build
+  // signUp: Supabase signUp → returns ok (no auto-login, user must sign in)
+  // signOut: Supabase signOut → clear session + data cache
+  // ════════════════════════════════════════════════════════════════════
+
+  async function signIn(email, password) {
+    if (!navigator.onLine) return { ok: false, err: 'No internet connection.' };
+
+    const { data, error } = await sb.auth.signInWithPassword({
+      email:    email.trim().toLowerCase(),
+      password: password,
+    });
+
+    if (error) {
+      const msg = error.message || '';
+      let userMsg;
+      if (/invalid login|invalid credentials|user not found/i.test(msg)) {
+        userMsg = 'Invalid email or password.';
+      } else if (/email not confirmed/i.test(msg)) {
+        userMsg = 'Please confirm your email first — check your inbox.';
+      } else if (/too many requests/i.test(msg)) {
+        userMsg = 'Too many attempts — please wait a moment and try again.';
+      } else {
+        // Sanitize any unexpected Supabase error — never expose raw internals
+        userMsg = (msg && msg.length < 120 && !/supabase|postgres|sql|jwt/i.test(msg))
+          ? msg
+          : 'Sign in failed. Please try again.';
+      }
+      return { ok: false, err: userMsg };
+    }
+
+    // Load profile and fetch DB data in parallel for fastest login experience
+    const [profile] = await Promise.all([
+      ensureProfile(data.user),
+      fetchFromDB(data.user.id).catch(() => null),
+    ]);
+
+    return {
+      ok:      true,
+      session: buildSession(data.user, profile),
+    };
+  }
+
+  async function signUp(fullName, email, password, role = 'pm') {
+    if (!navigator.onLine) return { ok: false, err: 'No internet connection.' };
+
+    // Client-side validation before hitting Supabase
+    const cleanName = fullName?.trim();
+    const cleanMail = email?.trim().toLowerCase();
+
+    if (!cleanName)
+      return { ok: false, err: 'Full name is required.' };
+    if (!cleanMail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanMail))
+      return { ok: false, err: 'Valid email address required.' };
+    if (!password || password.length < 6)
+      return { ok: false, err: 'Password must be at least 6 characters.' };
+
+    console.log('[TriCore signUp] calling Supabase for:', cleanMail);
+    const { data, error } = await sb.auth.signUp({
+      email:    cleanMail,
+      password: password,
+      options:  { data: { full_name: cleanName, role: role || 'pm' } },
+    });
+    console.log('[TriCore signUp] result:', { data: !!data?.user, error: error?.message });
+
+    if (error) {
+      const msg = error.message || '';
+      const userMsg = /already registered|already exists/i.test(msg)
+        ? 'An account with this email already exists.'
+        : msg || 'Registration failed. Please try again.';
+      return { ok: false, err: userMsg };
+    }
+    if (!data?.user) return { ok: false, err: 'Registration failed — please try again.' };
+    // Sign out after registration — user must log in explicitly
+    if (data.session) {
+      await sb.auth.signOut().catch(() => {});
+    }
+    return { ok: true };
+  }
+
+  async function signOut() {
+    const userId = window._tcSession?.userId;
+
+    // 1. Sign out from Supabase (invalidates server-side session)
+    if (sb) await sb.auth.signOut().catch(() => {});
+
+    // 2. Clear in-memory session + compat bridge
+    clearSession(false);
+
+    // 3. Clear localStorage data cache for this user.
+    //    This ensures the next login fetches fresh data from Supabase,
+    //    preventing a stale cache from masking changes made on another device.
+    if (userId) {
+      try { localStorage.removeItem(DATA_CACHE(userId)); } catch (_) {}
+      _hydratedUsers.delete(userId);
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // SECTION 12 — SESSION BOOTSTRAP (page load)
+  //
+  // restoreSession: Validates the existing Supabase session on page load.
+  //   • If valid: updates in-memory session + refreshes data cache in background
+  //   • If invalid + tc_session exists: clears tc_session + reloads page once
+  //     so React re-initializes and shows the login screen (not the dashboard)
+  //
+  // onAuthStateChange: Handles token refreshes and external sign-outs
+  //   (e.g., signing out in another browser tab).
+  // ════════════════════════════════════════════════════════════════════
+
+  async function restoreSession() {
+    // Pre-init already handled tc_session based on sessionStorage flag.
+    // Here we just sync the in-memory session with what pre-init wrote.
+    const raw = localStorage.getItem('tc_session');
+    if (!raw) return; // no session → show login (already the case)
+
+    let storedSession;
+    try { storedSession = JSON.parse(raw); } catch(_) { return; }
+    if (!storedSession?.userId) return;
+
+    // Restore in-memory session immediately (no network call needed)
+    window._tcSession = storedSession;
+    if (window.Zl) {
+      window.Zl.session     = () => storedSession;
+      window.Zl.getUserById = (id) => (storedSession.userId === id ? storedSession : null);
+    }
+
+    // Verify token with Supabase in background (non-blocking)
+    sb.auth.getSession().then(({ data }) => {
+      if (!data?.session?.user) {
+        // Token expired — clear and let next navigation show login
+        clearSession();
+      } else {
+        // Token valid — refresh data cache in background
+        fetchFromDB(data.session.user.id).catch(() => {});
+      }
+    }).catch(() => {});
+  }
+
+  // Auth state change listener — handles token refresh and cross-tab sign-out
+  if (sb) {
+    sb.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        clearSession(false);
+        return;
+      }
+      // TOKEN_REFRESHED: update our session with the new token data
+      // USER_UPDATED: profile changed — re-fetch and update
+      if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        const profile = await ensureProfile(session.user).catch(() => null);
+        setSession(buildSession(session.user, profile || {}));
+      }
+      // SIGNED_IN: fires when a new session starts (new tab, external OAuth, etc.)
+      // We handle it here to cover cases outside the pre-auth cache flow
+      if (event === 'SIGNED_IN') {
+        const prof = await ensureProfile(session.user).catch(() => null);
+        setSession(buildSession(session.user, prof || {}));
+      }
+    });
+  }
+
+  // Run session restore on every page load
+  restoreSession().catch(() => {}); // non-blocking — page loads immediately
+
+  // ════════════════════════════════════════════════════════════════════
+  // SECTION 13 — PUBLIC DEBUG API
+  // Exposed for console debugging and integration testing only.
+  // Never use in production application code.
+  // ════════════════════════════════════════════════════════════════════
+  window.tricoreCurrentUser = () => window._tcSession || null;
+
+
+
+  window.tricore = {
+    fetchFromDB,    // Manually refresh data from Supabase
+    syncToDB,       // Manually push local state to Supabase
+    clearSession,   // Force session clear (pass true to reload)
+    isHydrated: (uid) => _hydratedUsers.has(uid),
+    pendingDeletes: _pendingDeletes,
+  };
+
+  console.log('[TriCore] Auth module v4 initialized. Supabase is the sole auth provider.');
+
+})();
+</script>
+
+<!-- ================================================================
+  TRICORE AUTH MODULE v5
+
+  Architecture:
+  - sessionStorage('tc_active') = active tab flag (cleared on tab close)
+  - localStorage(SB_TOKEN_KEY)  = Supabase token (persists across tabs)
+  - localStorage(tc_user_data_*) = app data cache
+  - tc_session in localStorage = compat bridge for React bundle (sync)
+
+  Login flow:
+  1. User submits form → signIn() starts immediately (submit capture)
+  2. signIn completes → writes session + sessionStorage flag + RELOADS PAGE
+  3. On reload: pre-init sees tc_active + Supabase token → writes tc_session
+  4. React initializes → reads tc_session → shows dashboard ✓
+
+  Why reload works:
+  - Page reload preserves sessionStorage ✓
+  - Pre-init runs sync before React ✓
+  - No 650ms timing window needed ✓
+  ================================================================ -->
+<script type="module">
+(async function TriCoreAuth() {
+  'use strict';
+
+  // ── CONSTANTS ──────────────────────────────────────────────────────
+  const SB_URL         = 'https://bfgnwnrxlljkwkzzucza.supabase.co';
+  const SB_KEY         = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmZ253bnJ4bGxqa3drenp1Y3phIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTUxMzksImV4cCI6MjA4OTQ3MTEzOX0.EzX7JwANBE0be0QpwpZjH2Qsbkv4BVZTyhTuXBseYTc';
+  const SB_TOKEN_KEY   = 'sb-bfgnwnrxlljkwkzzucza-auth-token';
+  const DATA_CACHE     = (uid) => `tc_user_data_${uid}`;
+  const EMPTY_STATE    = () => ({
+    projects: [], wbs: [], baselines: [], claims: [],
+    risks: [], changeRequests: [],
+    profile: { name: 'User', email: '', role: 'pm', avatarMode: 'initial' }
+  });
+
+  // ── NATIVE SUPABASE CLIENT (no SDK, pure fetch) ─────────────────────
+
+  const sb = {
+    _url: SB_URL, _key: SB_KEY, _token: null,
+
+    auth: {
+      async signUp({ email, password, options }) {
+        const res = await fetch(`${SB_URL}/auth/v1/signup`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'apikey': SB_KEY },
+          body: JSON.stringify({ email, password, data: options?.data || {} })
+        });
+        const json = await res.json();
+        if (!res.ok) return { data: null, error: { message: json.error_description || json.msg || json.error || 'Sign up failed' } };
+        if (json.access_token) {
+          sb._token = json.access_token;
+          _saveToken({ access_token: json.access_token, refresh_token: json.refresh_token, user: json.user || json });
+        }
+        const user = json.user || json;
+        return { data: { user, session: json.access_token ? json : null }, error: null };
+      },
+
+      async signInWithPassword({ email, password }) {
+        const res = await fetch(`${SB_URL}/auth/v1/token?grant_type=password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'apikey': SB_KEY },
+          body: JSON.stringify({ email, password })
+        });
+        const json = await res.json();
+        if (!res.ok) return { data: null, error: { message: json.error_description || json.msg || json.error || 'Invalid credentials' } };
+        sb._token = json.access_token;
+        _saveToken({ access_token: json.access_token, refresh_token: json.refresh_token, user: json.user });
+        return { data: { user: json.user, session: json }, error: null };
+      },
+
+      async signOut() {
+        const token = sb._token || _loadToken()?.access_token;
+        if (token) {
+          await fetch(`${SB_URL}/auth/v1/logout`, {
+            method: 'POST',
+            headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}` }
+          }).catch(() => {});
+        }
+        sb._token = null;
+        _clearToken();
+        return { error: null };
+      },
+
+      async getSession() {
+        const stored = _loadToken();
+        if (!stored?.access_token) return { data: { session: null } };
+        const res = await fetch(`${SB_URL}/auth/v1/user`, {
+          headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${stored.access_token}` }
+        }).catch(() => null);
+        if (!res || !res.ok) { _clearToken(); return { data: { session: null } }; }
+        const user = await res.json();
+        sb._token = stored.access_token;
+        return { data: { session: { user } } };
+      },
+
+      async updateUser({ password }) {
+        const token = sb._token || _loadToken()?.access_token;
+        if (!token) return { error: { message: 'Not authenticated' } };
+        const res = await fetch(`${SB_URL}/auth/v1/user`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'apikey': SB_KEY, 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ password })
+        });
+        const json = await res.json();
+        if (!res.ok) return { error: { message: json.error_description || json.msg || 'Update failed' } };
+        return { data: json, error: null };
+      },
+
+      onAuthStateChange(cb) { return { data: { subscription: { unsubscribe: () => {} } } }; },
+    },
+
+    from(table) { return new SBQuery(table); },
+  };
+
+  class SBQuery {
+    constructor(t) { this._t = t; this._f = []; this._s = '*'; this._one = false; }
+    select(c)  { this._s = c; return this; }
+    eq(c, v)   { this._f.push(`${c}=eq.${encodeURIComponent(v)}`); return this; }
+    in(c, vs)  { this._f.push(`${c}=in.(${vs.map(v => encodeURIComponent(v)).join(',')})`); return this; }
+    single()   { this._one = true; return this; }
+
+    _h(extra = {}) {
+      const tk = sb._token || _loadToken()?.access_token;
+      return { 'apikey': SB_KEY, 'Authorization': `Bearer ${tk || SB_KEY}`, 'Content-Type': 'application/json', ...extra };
+    }
+    _url(qs = '') {
+      const base = `${SB_URL}/rest/v1/${this._t}?select=${encodeURIComponent(this._s)}`;
+      const f = this._f.length ? '&' + this._f.join('&') : '';
+      return base + f + (qs ? '&' + qs : '');
+    }
+    async _req(method, body) {
+      try {
+        const res = await fetch(this._url(), { method, headers: this._h({ 'Prefer': 'return=representation' }), body: body ? JSON.stringify(body) : undefined });
+        if (!res.ok) { const e = await res.json().catch(() => ({})); return { data: null, error: { message: e.message || `HTTP ${res.status}` } }; }
+        const txt = await res.text();
+        const data = txt ? JSON.parse(txt) : [];
+        if (this._one) {
+          const item = Array.isArray(data) ? data[0] : data;
+          if (!item) return { data: null, error: { code: 'PGRST116', message: 'No rows found' } };
+          return { data: item, error: null };
+        }
+        return { data: Array.isArray(data) ? data : [data], error: null };
+      } catch(e) { return { data: null, error: { message: e.message } }; }
+    }
+    then(r, j) { return this._req('GET').then(r, j); }
+    catch(fn)  { return this._req('GET').catch(fn); }
+    async insert(rows) {
+      const body = Array.isArray(rows) ? rows : [rows];
+      return this._req('POST', body);
+    }
+    async upsert(rows, opts = {}) {
+      const body = Array.isArray(rows) ? rows : [rows];
+      try {
+        const tk = sb._token || _loadToken()?.access_token;
+        const res = await fetch(`${SB_URL}/rest/v1/${this._t}?on_conflict=${opts.onConflict || 'id'}`, {
+          method: 'POST',
+          headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${tk || SB_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) { const e = await res.json().catch(() => ({})); return { error: { message: e.message || `HTTP ${res.status}` } }; }
+        return { error: null };
+      } catch(e) { return { error: { message: e.message } }; }
+    }
+    async update(data) { return this._req('PATCH', data); }
+    delete() {
+      const orig_f = this._f.slice();
+      return {
+        in: (col, vals) => {
+          this._f.push(`${col}=in.(${vals.map(v => encodeURIComponent(v)).join(',')})`);
+          return this;
+        },
+        eq: (col, val) => {
+          this._f.push(`${col}=eq.${encodeURIComponent(val)}`);
+          return this;
+        },
+        then: (r, j) => this._req('DELETE').then(r, j),
+      };
+    }
+  }
+
+  function _saveToken(s) { try { localStorage.setItem(SB_TOKEN_KEY, JSON.stringify(s)); } catch(_) {} }
+  function _loadToken()  { try { return JSON.parse(localStorage.getItem(SB_TOKEN_KEY) || 'null'); } catch(_) { return null; } }
+  function _clearToken() { try { localStorage.removeItem(SB_TOKEN_KEY); } catch(_) {} }
+
+  window.supabase = sb;
+
+  // ── FIELD MAPPERS ──────────────────────────────────────────────────
+  const toDb = {
+    project: (p, uid) => ({ id: p.id, user_id: uid, code: p.code||'', name: p.name, description: p.desc||'', owner: p.owner||'', dept: p.dept||'', status: p.status||'notStarted', priority: p.priority||'medium', start_date: p.start||null, end_date: p.end||null, budget: Number(p.budget)||0, currency: p.currency||'SAR', methodology: p.methodology||'hybrid', template: p.template||'blank', type: p.type||'internal' }),
+    wbs: (w, uid) => ({ id: w.id, project_id: w.pid, user_id: uid, parent_id: w.par||null, code: w.code||'', name: w.name, type: w.type||'workpackage', resp: w.resp||'', ps: w.ps||null, pe: w.pe||null, bac: Number(w.bac)||0, ac: Number(w.ac)||0, pct: Number(w.pct)||0, ks: w.ks||'backlog', deps: Array.isArray(w.deps)?w.deps:[], pri: w.pri||'medium', status: w.status||'notStarted' }),
+    baseline: (b, uid) => ({ id: b.id, project_id: b.pid, user_id: uid, version: b.version||'', date: b.date||null, approved_by: b.by||'', notes: b.notes||'' }),
+    claim: (c, uid) => ({ id: c.id, project_id: c.pid, user_id: uid, wbs_id: c.wid||null, title: c.title, vendor: c.vendor||'', cat: c.cat||'', type: c.type||'', req_by: c.reqBy||'', est: c.est!=null?Number(c.est):null, app: c.app!=null?Number(c.app):null, act: c.act!=null?Number(c.act):null, rd: c.rd||null, nd: c.nd||null, pd: c.pd||null, status: c.status||'draft', description: c.desc||'' }),
+    risk: (r, uid) => ({ id: r.id, project_id: r.pid, user_id: uid, title: r.title, prob: r.prob||'medium', impact: r.impact||'medium', score: Number(r.score)||0, owner: r.owner||'', status: r.status||'open', mit: r.mit||'', due_date: r.due||null }),
+    cr: (c, uid) => ({ id: c.id, project_id: c.pid, user_id: uid, title: c.title, description: c.desc||'', req_by: c.reqBy||'', orig_bac: Number(c.origBAC)||0, rev_bac: Number(c.revBAC)||0, orig_end: c.origEnd||null, rev_end: c.revEnd||null, status: c.status||'pending', submitted_at: c.submitted||null, approved_at: c.approved||null }),
+  };
+  const fromDb = {
+    project: (r) => ({ id: r.id, code: r.code, name: r.name, desc: r.description, owner: r.owner, dept: r.dept, status: r.status, priority: r.priority, start: r.start_date, end: r.end_date, budget: r.budget, currency: r.currency, methodology: r.methodology, template: r.template, type: r.type, created: r.created_at }),
+    wbs: (r) => ({ id: r.id, pid: r.project_id, par: r.parent_id, code: r.code, name: r.name, type: r.type, resp: r.resp, ps: r.ps, pe: r.pe, bac: r.bac, ac: r.ac, pct: r.pct, ks: r.ks, deps: Array.isArray(r.deps)?r.deps:[], pri: r.pri, status: r.status }),
+    baseline: (r) => ({ id: r.id, pid: r.project_id, version: r.version, date: r.date, by: r.approved_by, notes: r.notes }),
+    claim: (r) => ({ id: r.id, pid: r.project_id, wid: r.wbs_id, title: r.title, vendor: r.vendor, cat: r.cat, type: r.type, reqBy: r.req_by, est: r.est, app: r.app, act: r.act, rd: r.rd, nd: r.nd, pd: r.pd, status: r.status, desc: r.description }),
+    risk: (r) => ({ id: r.id, pid: r.project_id, title: r.title, prob: r.prob, impact: r.impact, score: r.score, owner: r.owner, status: r.status, mit: r.mit, due: r.due_date }),
+    cr: (r) => ({ id: r.id, pid: r.project_id, title: r.title, desc: r.description, reqBy: r.req_by, origBAC: r.orig_bac, revBAC: r.rev_bac, origEnd: r.orig_end, revEnd: r.rev_end, status: r.status, submitted: r.submitted_at, approved: r.approved_at }),
+  };
+
+  // ── DATA SAFETY ────────────────────────────────────────────────────
+  const _hydrated = new Set();
+  const _deletes  = { wbs_items: new Set(), baselines: new Set(), claims: new Set(), risks: new Set(), change_requests: new Set() };
+
+  function trackDeletions(prev, next) {
+    if (!prev) return;
+    const pairs = [
+      [prev.wbs,            next.wbs,            'wbs_items'],
+      [prev.baselines,      next.baselines,      'baselines'],
+      [prev.claims,         next.claims,         'claims'],
+      [prev.risks,          next.risks,          'risks'],
+      [prev.changeRequests, next.changeRequests, 'change_requests'],
+    ];
+    for (const [p, n, t] of pairs) {
+      if (!Array.isArray(p) || !Array.isArray(n)) continue;
+      const nextIds = new Set(n.map(i => i.id));
+      for (const item of p) { if (item.id && !nextIds.has(item.id)) _deletes[t].add(item.id); }
+    }
+  }
+
+  // ── DB READ ────────────────────────────────────────────────────────
+  async function fetchFromDB(userId) {
+    if (!userId) return null;
+    try {
+      const [p, w, b, c, r, cr] = await Promise.all([
+        sb.from('projects').select('*').eq('user_id', userId),
+        sb.from('wbs_items').select('*').eq('user_id', userId),
+        sb.from('baselines').select('*').eq('user_id', userId),
+        sb.from('claims').select('*').eq('user_id', userId),
+        sb.from('risks').select('*').eq('user_id', userId),
+        sb.from('change_requests').select('*').eq('user_id', userId),
+      ]);
+      if (p.error) { console.warn('[TriCore] DB error:', p.error.message); return null; }
+      const state = { ...EMPTY_STATE(), projects: (p.data||[]).map(fromDb.project), wbs: (w.data||[]).map(fromDb.wbs), baselines: (b.data||[]).map(fromDb.baseline), claims: (c.data||[]).map(fromDb.claim), risks: (r.data||[]).map(fromDb.risk), changeRequests: (cr.data||[]).map(fromDb.cr) };
+      try { localStorage.setItem(DATA_CACHE(userId), JSON.stringify(state)); } catch(_) {}
+      _hydrated.add(userId);
+      return state;
+    } catch(e) { console.warn('[TriCore] fetchFromDB:', e.message); return null; }
+  }
+
+  // ── DB WRITE ───────────────────────────────────────────────────────
+  const _syncTimers = {};
+  function scheduleSync(userId, state) {
+    clearTimeout(_syncTimers[userId]);
+    _syncTimers[userId] = setTimeout(() => syncToDB(userId, state), 2000);
+  }
+
+  async function syncToDB(userId, state) {
+    if (!userId || !state) return;
+    try {
+      const pids = (state.projects||[]).map(p => p.id);
+      if (state.projects?.length) {
+        const { error } = await sb.from('projects').upsert(state.projects.map(p => toDb.project(p, userId)), { onConflict: 'id' });
+        if (error) console.warn('[TriCore] projects upsert:', error.message);
+      }
+      const tables = [
+        { t: 'wbs_items',       items: state.wbs,            m: toDb.wbs },
+        { t: 'baselines',       items: state.baselines,      m: toDb.baseline },
+        { t: 'claims',          items: state.claims,         m: toDb.claim },
+        { t: 'risks',           items: state.risks,          m: toDb.risk },
+        { t: 'change_requests', items: state.changeRequests, m: toDb.cr },
+      ];
+      for (const { t, items, m } of tables) {
+        const rows = (items||[]).filter(i => i.id && pids.includes(i.pid)).map(i => m(i, userId));
+        if (rows.length) {
+          const { error } = await sb.from(t).upsert(rows, { onConflict: 'id' });
+          if (error) console.warn(`[TriCore] ${t} upsert:`, error.message);
+        }
+        const toDel = [..._deletes[t]];
+        if (toDel.length) {
+          const tk = sb._token || _loadToken()?.access_token;
+          const res = await fetch(`${SB_URL}/rest/v1/${t}?id=in.(${toDel.map(id => encodeURIComponent(id)).join(',')})&user_id=eq.${userId}`, {
+            method: 'DELETE', headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${tk||SB_KEY}` }
+          }).catch(() => null);
+          if (res?.ok) toDel.forEach(id => _deletes[t].delete(id));
+        }
+      }
+    } catch(e) { console.warn('[TriCore] syncToDB:', e.message); }
+  }
+
+  // ── PROFILE ────────────────────────────────────────────────────────
+  async function loadProfile(userId) {
+    if (!userId) return null;
+    try {
+      const { data } = await sb.from('profiles').select('id, full_name, email, role').eq('id', userId).single();
+      return data || null;
+    } catch(_) { return null; }
+  }
+
+  async function ensureProfile(authUser) {
+    const existing = await loadProfile(authUser.id);
+    if (existing) return existing;
+    const candidate = { id: authUser.id, full_name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User', email: authUser.email || '', role: authUser.user_metadata?.role || 'pm' };
+    try {
+      const { data } = await sb.from('profiles').insert(candidate).select('id, full_name, email, role').single();
+      return data || candidate;
+    } catch(_) { return candidate; }
+  }
+
+  // ── SESSION ────────────────────────────────────────────────────────
+  function buildSession(user, profile) {
+    return {
+      userId:    user.id,
+      name:      profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
+      email:     user.email || profile?.email || '',
+      role:      profile?.role || user.user_metadata?.role || 'pm',
+      loginTime: Date.now(),
+    };
+  }
+
+  function setSession(session) {
+    window._tcSession = session;
+    if (window.Zl) {
+      window.Zl.session     = () => session;
+      window.Zl.getUserById = (id) => (session?.userId === id ? session : null);
+    }
+    // Mark this tab as having an active session
+    try { sessionStorage.setItem('tc_active', '1'); } catch(_) {}
+    try { localStorage.setItem('tc_session', JSON.stringify(session)); } catch(_) {}
+  }
+
+  function clearSession() {
+    window._tcSession = null;
+    if (window.Zl) {
+      window.Zl.session     = () => null;
+      window.Zl.getUserById = () => null;
+    }
+    try { sessionStorage.removeItem('tc_active'); } catch(_) {}
+    try { localStorage.removeItem('tc_session'); } catch(_) {}
+  }
+
+  // ── CORE AUTH ──────────────────────────────────────────────────────
+  async function signIn(email, password) {
+    const { data, error } = await sb.auth.signInWithPassword({
+      email: email.trim().toLowerCase(), password
+    });
+    if (error) {
+      const msg = error.message || '';
+      const userMsg = /invalid login|invalid credentials|user not found/i.test(msg) ? 'Invalid email or password.'
+        : /email not confirmed/i.test(msg) ? 'Please confirm your email first.'
+        : /too many requests/i.test(msg) ? 'Too many attempts — please wait.'
+        : (msg.length < 120 && !/supabase|postgres|sql|jwt/i.test(msg)) ? msg : 'Sign in failed.';
+      return { ok: false, err: userMsg };
+    }
+    const [profile] = await Promise.all([
+      ensureProfile(data.user),
+      fetchFromDB(data.user.id).catch(() => null),
+    ]);
+    const session = buildSession(data.user, profile);
+
+    // Set session + mark tab active + write tc_session
+    setSession(session);
+
+    // Reload page — pre-init will restore tc_session on next load
+    // sessionStorage survives reload → user stays logged in on refresh
+    // sessionStorage is cleared on tab close → login required after close
+    window.location.reload();
+
+    return { ok: true, session };
+  }
+
+  async function signUp(fullName, email, password, role = 'pm') {
+    const cleanName = fullName?.trim();
+    const cleanMail = email?.trim().toLowerCase();
+    if (!cleanName) return { ok: false, err: 'Full name is required.' };
+    if (!cleanMail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanMail)) return { ok: false, err: 'Valid email address required.' };
+    if (!password || password.length < 6) return { ok: false, err: 'Password must be at least 6 characters.' };
+
+    const { data, error } = await sb.auth.signUp({ email: cleanMail, password, options: { data: { full_name: cleanName, role: role || 'pm' } } });
+    if (error) {
+      const msg = error.message || '';
+      return { ok: false, err: /already registered|already exists/i.test(msg) ? 'An account with this email already exists.' : msg || 'Registration failed.' };
+    }
+    if (!data?.user) return { ok: false, err: 'Registration failed — please try again.' };
+    // Sign out so user must log in explicitly
+    if (data.session) await sb.auth.signOut().catch(() => {});
+    return { ok: true };
+  }
+
+  async function signOut() {
+    const userId = window._tcSession?.userId;
+    await sb.auth.signOut().catch(() => {});
+    clearSession();
+    if (userId) {
+      try { localStorage.removeItem(DATA_CACHE(userId)); } catch(_) {}
+      _hydrated.delete(userId);
+    }
+  }
+
+  // ── ROLE TRACKER ───────────────────────────────────────────────────
+  let _trackedRole = 'pm';
+  document.addEventListener('click', function(ev) {
+    const card = ev.target.closest ? ev.target.closest('[class*="role-card"]') : null;
+    if (!card) return;
+    const text = card.textContent || '';
+    if (/analyst/i.test(text))         _trackedRole = 'analyst';
+    else if (/executive/i.test(text))  _trackedRole = 'executive';
+    else if (/manager|pm/i.test(text)) _trackedRole = 'pm';
+  }, true);
+
+  // ── SUBMIT LISTENER ───────────────────────────────────────────────
+  let _loginPending    = null;
+  let _registerPending = null;
+
+  document.addEventListener('submit', function(ev) {
+    const form   = ev.target;
+    if (!form) return;
+    const emailEl = form.querySelector('input[type="email"]');
+    const passEl  = form.querySelector('input[type="password"], input[autocomplete="current-password"], input[autocomplete="new-password"]');
+    const nameEl  = form.querySelector('input[autocomplete="name"]');
+    const email   = emailEl?.value?.trim() || '';
+    const pass    = passEl?.value          || '';
+    const name    = nameEl?.value?.trim()  || '';
+    if (!email || !pass) return;
+
+    if (name) {
+      _registerPending = { promise: null, result: null };
+      _registerPending.promise = signUp(name, email, pass, _trackedRole)
+        .then(r => { _registerPending.result = r; });
+    } else {
+      _loginPending = { promise: null, result: null };
+      _loginPending.promise = signIn(email, pass)
+        .then(r => { _loginPending.result = r; });
+      // Note: signIn() triggers window.location.reload() on success
+      // On failure: result is cached → Zl.login returns error after 650ms
+    }
+  }, true);
+
+  // ── ZL INTERFACE ──────────────────────────────────────────────────
+  const zl = {
+    // login: only handles the ERROR case (success triggers reload before reaching here)
+    login(email, _pass) {
+      if (_loginPending?.result) {
+        const r = _loginPending.result;
+        _loginPending = null;
+        return r;
+      }
+      return { ok: false, err: 'Signing in…' };
+    },
+
+    register(name, email, pass, role) {
+      if (_registerPending?.result) {
+        const r = _registerPending.result;
+        _registerPending = null;
+        return r;
+      }
+      if (!_registerPending?.promise) {
+        _registerPending = { promise: null, result: null };
+        _registerPending.promise = signUp(name, email, pass, role || _trackedRole || 'pm')
+          .then(r => { _registerPending.result = r; });
+      }
+      return { ok: false, err: 'Creating account…' };
+    },
+
+    logout() { signOut().catch(e => console.warn('[TriCore] logout:', e.message)); },
+
+    session:      () => window._tcSession || null,
+    getUserById:  (id) => (window._tcSession?.userId === id ? window._tcSession : null),
+    users:     () => [],
+    saveUsers: () => [],
+    dataKey:      (uid) => DATA_CACHE(uid),
+    defaultState: ()    => EMPTY_STATE(),
+
+    getUserData(userId) {
+      if (!userId) return EMPTY_STATE();
+      try {
+        const raw = localStorage.getItem(DATA_CACHE(userId));
+        if (!raw) return EMPTY_STATE();
+        const s = JSON.parse(raw), d = EMPTY_STATE();
+        return { ...d, ...s, profile: { ...d.profile, ...(s.profile || {}) } };
+      } catch(_) { return EMPTY_STATE(); }
+    },
+
+    saveUserData(userId, nextState) {
+      if (!userId) return nextState;
+      try {
+        const state = window.TriCoreProjectTools?.syncProjectArtifacts
+          ? window.TriCoreProjectTools.syncProjectArtifacts(nextState) : nextState;
+        try {
+          const prev = JSON.parse(localStorage.getItem(DATA_CACHE(userId)) || 'null');
+          trackDeletions(prev, state);
+        } catch(_) {}
+        localStorage.setItem(DATA_CACHE(userId), JSON.stringify(state));
+        window.dispatchEvent(new CustomEvent('tricore:data-updated', { detail: { userId } }));
+        if (_hydrated.has(userId)) scheduleSync(userId, state);
+        return state;
+      } catch(_) { return nextState; }
+    },
+
+    updateProfile(userId, payload) {
+      if (!userId) return { ok: false, err: 'Not authenticated.' };
+      const newName = payload?.name?.trim();
+      if (!newName) return { ok: true, user: window._tcSession };
+      const current = window._tcSession;
+      if (current?.userId === userId) setSession({ ...current, name: newName });
+      sb.from('profiles').update({ full_name: newName }).eq('id', userId)
+        .then(({ error }) => { if (error) console.warn('[TriCore] profile update:', error.message); });
+      return { ok: true, user: window._tcSession };
+    },
+
+    updatePassword(userId, _old, newPass) {
+      if (!newPass || newPass.length < 6) return { ok: false, err: 'New password must be at least 6 characters.' };
+      sb.auth.updateUser({ password: newPass })
+        .then(({ error }) => { if (error) console.warn('[TriCore] password update:', error.message); });
+      return { ok: true };
+    },
+  };
+
+  if (window.Zl) Object.assign(window.Zl, zl);
+  else window.Zl = zl;
+
+  // ── RESTORE SESSION (page reload) ──────────────────────────────────
+  // Pre-init already wrote tc_session if sessionStorage.tc_active was set.
+  // We just need to sync the in-memory session with what's in localStorage.
+  async function restoreSession() {
+    const raw = localStorage.getItem('tc_session');
+    if (!raw) return; // pre-init cleared it → show login
+
+    let storedSession;
+    try { storedSession = JSON.parse(raw); } catch(_) { return; }
+    if (!storedSession?.userId) return;
+
+    // Verify with Supabase that token is still valid
+    const { data } = await sb.auth.getSession().catch(() => ({ data: null }));
+    if (!data?.session?.user) {
+      // Token expired — clear everything and show login
+      clearSession();
+      return;
+    }
+
+    // Session valid — restore in memory + refresh data in background
+    const profile = await ensureProfile(data.session.user).catch(() => null);
+    setSession(buildSession(data.session.user, profile || {}));
+    fetchFromDB(data.session.user.id).catch(() => {});
+  }
+
+  restoreSession().catch(() => {}); // non-blocking — page loads immediately
+
+  window.tricoreCurrentUser = () => window._tcSession || null;
+  window.tricore = { fetchFromDB, syncToDB, clearSession };
+
+  console.log('[TriCore] v5 ready');
+
+})();
+</script>
+</body>
+</html>
