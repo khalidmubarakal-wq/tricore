@@ -1954,8 +1954,8 @@ react/cjs/react-jsx-runtime.production.js:
 
   window.supabase = supabase;
 </script>
-  <script>
-  async function tricoreSignUp(email, password, fullName, role) {
+<script type="module">
+  window.tricoreSignUp = async function(email, password, fullName, role) {
     const { data, error } = await window.supabase.auth.signUp({
       email: email,
       password: password
@@ -1980,7 +1980,7 @@ react/cjs/react-jsx-runtime.production.js:
     return data;
   }
 
-  async function tricoreSignIn(email, password) {
+  window.tricoreSignIn = async function(email, password) {
     const { data, error } = await window.supabase.auth.signInWithPassword({
       email: email,
       password: password
@@ -1990,12 +1990,7 @@ react/cjs/react-jsx-runtime.production.js:
     return data;
   }
 
-  async function tricoreSignOut() {
-    const { error } = await window.supabase.auth.signOut();
-    if (error) throw error;
-  }
-
-  async function tricoreCurrentUser() {
+  window.tricoreCurrentUser = async function() {
     const { data, error } = await window.supabase.auth.getUser();
     if (error) throw error;
     return data.user;
