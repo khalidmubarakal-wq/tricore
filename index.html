@@ -1996,6 +1996,156 @@ react/cjs/react-jsx-runtime.production.js:
     return data.user;
   }
 </script>
+  <script type="module">
+  async function tricoreGetProfile(userId) {
+    const { data, error } = await window.supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data;
+  }
+
+  async function tricoreEnsureProfile(user, fallbackName, fallbackRole) {
+    let profile = await tricoreGetProfile(user.id);
+
+    if (!profile) {
+      const payload = {
+        id: user.id,
+        full_name: fallbackName || user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
+        email: user.email,
+        role: fallbackRole || 'pm'
+      };
+
+      const { error: insertError } = await window.supabase
+        .from('profiles')
+        .insert(payload);
+
+      if (insertError) throw insertError;
+      profile = payload;
+    }
+
+    return profile;
+  }
+
+  function tricoreBuildSession(user, profile) {
+    return {
+      userId: user.id,
+      name: profile?.full_name || user.user_metadata?.full_name || user.email || 'User',
+      email: user.email || '',
+      role: profile?.role || 'pm',
+      loginTime: Date.now()
+    };
+  }
+
+  function tricoreSaveCompatSession(session) {
+    localStorage.setItem('tc_session', JSON.stringify(session));
+    return session;
+  }
+
+  async function tricoreSyncSessionFromSupabase() {
+    const { data, error } = await window.supabase.auth.getUser();
+    if (error) throw error;
+
+    const user = data?.user;
+    if (!user) {
+      localStorage.removeItem('tc_session');
+      return null;
+    }
+
+    const profile = await tricoreEnsureProfile(user);
+    const session = tricoreBuildSession(user, profile);
+    tricoreSaveCompatSession(session);
+    return session;
+  }
+
+  window.tricorePatchAuth = function() {
+    if (!window.Zl) {
+      console.warn('TriCore auth object Zl not found yet.');
+      return;
+    }
+
+    // Override login to use Supabase instead of localStorage users
+    window.Zl.login = async function(email, password) {
+      try {
+        const { data, error } = await window.supabase.auth.signInWithPassword({
+          email,
+          password
+        });
+
+        if (error) return { ok: false, err: error.message };
+
+        const user = data?.user;
+        if (!user) return { ok: false, err: 'Login failed.' };
+
+        const profile = await tricoreEnsureProfile(user);
+        const session = tricoreBuildSession(user, profile);
+        tricoreSaveCompatSession(session);
+
+        return { ok: true, session };
+      } catch (err) {
+        return { ok: false, err: err?.message || 'Login failed.' };
+      }
+    };
+
+    // Override register to use Supabase auth + profiles table
+    window.Zl.register = async function(name, email, password, role) {
+      try {
+        const { data, error } = await window.supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { full_name: name }
+          }
+        });
+
+        if (error) return { ok: false, err: error.message };
+
+        const user = data?.user;
+        if (!user) return { ok: false, err: 'Registration failed.' };
+
+        await tricoreEnsureProfile(user, name, role || 'pm');
+
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, err: err?.message || 'Registration failed.' };
+      }
+    };
+
+    // Keep the existing app compatible by continuing to read tc_session
+    window.Zl.session = function() {
+      try {
+        return JSON.parse(localStorage.getItem('tc_session') || 'null');
+      } catch {
+        return null;
+      }
+    };
+
+    // Logout from both Supabase and compatibility local session
+    window.Zl.logout = async function() {
+      try {
+        await window.supabase.auth.signOut();
+      } catch (_) {}
+      localStorage.removeItem('tc_session');
+    };
+
+    console.log('TriCore auth patched to Supabase.');
+  };
+
+  // Apply the patch after page load
+  window.addEventListener('load', async function() {
+    window.tricorePatchAuth();
+
+    // If user already has an active Supabase session, mirror it into tc_session
+    try {
+      await tricoreSyncSessionFromSupabase();
+    } catch (e) {
+      console.warn('Session sync skipped:', e?.message || e);
+    }
+  });
+</script>
 
 </body>
 </html>
