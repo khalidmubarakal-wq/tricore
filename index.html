@@ -2295,6 +2295,52 @@ react/cjs/react-jsx-runtime.production.js:
     return data || [];
   };
 </script>
+  <script type="module">
+  window.tricoreHydrateTasksFromSupabase = async function() {
+    try {
+      const user = await window.tricoreCurrentUser();
+      if (!user) return;
+
+      const projects = await window.tricoreLoadProjects();
+      const stateKey = 'tc_state_' + user.id;
+      const stored = JSON.parse(localStorage.getItem(stateKey) || '{}');
+
+      let allWbs = Array.isArray(stored.wbs) ? stored.wbs.slice() : [];
+
+      for (const project of projects) {
+        const tasks = await window.tricoreLoadTasks(project.id);
+
+        const mapped = tasks.map(task => ({
+          id: task.id,
+          projectId: project.id,
+          name: task.title,
+          type: 'task',
+          ks: task.status || 'todo',
+          owner: task.assignee || '',
+          ps: task.start_date || project.start_date || null,
+          pe: task.end_date || project.end_date || null,
+          pct: Number(task.progress || 0),
+          progress: Number(task.progress || 0)
+        }));
+
+        allWbs = allWbs.filter(item => item.projectId !== project.id).concat(mapped);
+      }
+
+      const nextState = Object.assign({}, stored, { wbs: allWbs });
+      localStorage.setItem(stateKey, JSON.stringify(nextState));
+
+      console.log('Hydrated tasks from Supabase:', allWbs);
+    } catch (err) {
+      console.error('Task hydration failed:', err);
+    }
+  };
+
+  window.addEventListener('load', function() {
+    setTimeout(async () => {
+      await window.tricoreHydrateTasksFromSupabase();
+    }, 1600);
+  });
+</script>
 
 </body>
 </html>
