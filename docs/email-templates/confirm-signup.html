@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome to TriCore</title>
+</head>
+<body style="margin:0;padding:0;background:#eef2f7;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef2f7;padding:32px 12px;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;font-family:'Segoe UI',Tahoma,Arial,sans-serif;">
+        <!-- Header -->
+        <tr><td align="center" style="background:#0f1e35;background-image:linear-gradient(135deg,#0a1628 0%,#1e3a5f 65%,#0ea5e9 100%);padding:28px 24px;">
+          <img src="{{ .SiteURL }}/assets/img/logo-on-dark.png" alt="TriCore" height="44" style="display:block;height:44px;width:auto;border:0;">
+        </td></tr>
+
+        <!-- Arabic -->
+        <tr><td dir="rtl" style="padding:32px 32px 8px;text-align:right;">
+          <h1 style="margin:0 0 10px;font-size:20px;color:#0f172a;">مرحباً بك في TriCore 👋</h1>
+          <p style="margin:0;font-size:15px;line-height:1.8;color:#475569;">شكراً لتسجيلك. أدخل رمز التحقق التالي في نافذة التأكيد لتفعيل حسابك:</p>
+        </td></tr>
+
+        <!-- Code -->
+        <tr><td align="center" style="padding:22px 32px;">
+          <div dir="ltr" style="display:inline-block;padding:14px 28px;border-radius:12px;background:#f0f9ff;border:1px solid #bae6fd;font-family:'Courier New',Courier,monospace;font-size:32px;font-weight:700;letter-spacing:10px;color:#1e3a5f;">{{ .Token }}</div>
+          <p style="margin:12px 0 0;font-size:12.5px;color:#94a3b8;">ينتهي الرمز خلال ساعة · The code expires in 1 hour</p>
+        </td></tr>
+
+        <!-- English -->
+        <tr><td dir="ltr" style="padding:8px 32px 30px;text-align:left;border-top:1px solid #f1f5f9;">
+          <h2 style="margin:18px 0 8px;font-size:17px;color:#0f172a;">Welcome to TriCore</h2>
+          <p style="margin:0;font-size:14px;line-height:1.7;color:#475569;">Thanks for signing up. Enter the code above in the verification window to activate your account.</p>
+        </td></tr>
+
+
+        <!-- Footer -->
+        <tr><td style="padding:18px 32px;background:#f8fafc;border-top:1px solid #f1f5f9;">
+          <p dir="rtl" style="margin:0 0 6px;font-size:12px;line-height:1.7;color:#94a3b8;text-align:right;">إذا لم تقم بإنشاء حساب في TriCore فتجاهل هذه الرسالة.</p>
+          <p dir="ltr" style="margin:0;font-size:12px;line-height:1.7;color:#94a3b8;text-align:left;">If you didn't create a TriCore account, you can ignore this email.</p>
+        </td></tr>
+      </table>
+      <p style="margin:16px 0 0;font-family:'Segoe UI',Tahoma,Arial,sans-serif;font-size:11px;color:#94a3b8;">© TriCore PMO</p>
+    </td></tr>
+  </table>
+</body>
+</html>

@@ -1,0 +1,181 @@
+/* ══ 1. BRAND LOGOS ═══════════════════════════════════ */
+/* Sidebar header rendered by the bundle; holds img.tc-sidebar-logo. */
+.sidebar > div:first-child {
+  background: transparent !important;
+  border-bottom: 1px solid rgba(255,255,255,.07) !important;
+  padding: 18px 18px 16px !important;
+}
+.tc-sidebar-logo {
+  display: block;
+  height: 34px;
+  width: auto;
+  cursor: pointer;
+}
+.tc-topbar-logo { cursor: pointer; }
+/* Above the mobile breakpoint the sidebar (with its logo) is always visible,
+   so the topbar logo and its breadcrumb divider would only duplicate it. */
+/* On phones the topbar is too narrow for logo + breadcrumb; keep the logo. */
+@media (max-width: 768px) {
+  .tc-topbar-logo + div { display: none !important; }
+}
+@media (min-width: 769px) {
+  .tc-topbar-logo { display: none !important; }
+  .tc-topbar-logo + div {
+    border-left: 0 !important; border-right: 0 !important;
+    padding-left: 0 !important; padding-right: 0 !important;
+  }
+}
+
+/* ══ 2. RACI COLORED BADGES ═══════════════════════════ */
+.tc-raci-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px; height: 24px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .02em;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  transition: transform .1s, box-shadow .1s;
+  user-select: none;
+  position: relative;
+}
+.tc-raci-badge:hover { transform: scale(1.12); box-shadow: 0 2px 8px rgba(0,0,0,.15); }
+.tc-raci-badge.rb-R { background: #fee2e2; color: #dc2626; border-color: #fecaca; }
+.tc-raci-badge.rb-A { background: #fef3c7; color: #b45309; border-color: #fde68a; }
+.tc-raci-badge.rb-C { background: #dbeafe; color: #1d4ed8; border-color: #bfdbfe; }
+.tc-raci-badge.rb-I { background: #f1f5f9; color: #64748b; border-color: #cbd5e1; }
+.tc-raci-badge.rb-x { background: transparent; color: #cbd5e1; border-color: #f1f5f9; font-size: 14px; font-weight: 300; }
+.tc-raci-badge.rb-x:hover { background: #f8fafc; color: #94a3b8; border-color: #e2e8f0; }
+
+/* Badge dropdown menu */
+.tc-badge-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%; transform: translateX(-50%);
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  padding: 4px;
+  z-index: 1000;
+  display: flex; flex-direction: column; gap: 2px;
+  min-width: 90px;
+}
+.tc-badge-menu-item {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 10px;
+  border-radius: 7px;
+  font-size: 11.5px; font-weight: 600;
+  cursor: pointer;
+  transition: background .1s;
+  border: none; background: none; width: 100%;
+  text-align: right; font-family: inherit;
+}
+.tc-badge-menu-item:hover { background: #f1f5f9; }
+.tc-badge-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+/* ══ 3. WORKLOAD HEATMAP BARS IN MEMBER HEADER ════════ */
+.tc-load-bar {
+  width: 60px; height: 4px;
+  background: #e2e8f0;
+  border-radius: 99px;
+  margin: 2px auto 0;
+  overflow: hidden;
+}
+.tc-load-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width .5s ease;
+}
+
+/* ══ 4. MEMBER WBS POPUP ═══════════════════════════════ */
+.tc-member-popup {
+  position: fixed;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  box-shadow: 0 16px 48px rgba(0,0,0,.18);
+  padding: 0;
+  z-index: 2000;
+  min-width: 340px;
+  max-width: 420px;
+  max-height: 520px;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  font-family: 'IBM Plex Sans Arabic', 'Noto Sans Arabic', system-ui, sans-serif;
+}
+.tc-mp-header {
+  padding: 16px 18px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex; align-items: center; gap: 10px;
+}
+.tc-mp-body { overflow-y: auto; padding: 10px 0; flex: 1; }
+.tc-mp-close {
+  margin-right: auto; background: none; border: none; cursor: pointer;
+  color: #94a3b8; font-size: 18px; line-height: 1; padding: 2px;
+}
+.tc-mp-kpi {
+  display: flex; gap: 0;
+  padding: 10px 18px 8px;
+  border-bottom: 1px solid #f8fafc;
+}
+.tc-mp-kpi-item {
+  flex: 1; text-align: center;
+  padding: 8px 4px;
+  border-radius: 8px;
+  background: #f8fafc;
+  margin: 0 3px;
+}
+.tc-mp-kpi-val { font-size: 15px; font-weight: 800; font-family: 'DM Mono', monospace; }
+.tc-mp-kpi-lbl { font-size: 9.5px; color: #94a3b8; font-weight: 600; letter-spacing: .04em; margin-top: 2px; }
+.tc-mp-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 18px;
+  border-bottom: 1px solid #f8fafc;
+}
+.tc-mp-row:last-child { border-bottom: none; }
+.tc-mp-code { font-size: 10px; font-family: 'DM Mono', monospace; color: #94a3b8; min-width: 40px; }
+.tc-mp-name { font-size: 12.5px; color: #334155; flex: 1; }
+.tc-mp-pct { font-size: 10px; font-weight: 700; font-family: 'DM Mono', monospace; }
+
+/* ══ 5. SOFTER EVM / PROJECT SUMMARY CARDS ════════════ */
+/* EVM SUMMARY card */
+div[style*="EVM SUMMARY"],
+div[style*="evm-strip"] {
+  border-radius: 12px !important;
+}
+/* Target the twin cards at bottom of Overview */
+.app-content div[style*="EVM SUMMARY"] {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 12px !important;
+}
+.app-content div[style*="PROJECT SUMMARY"] {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 12px !important;
+}
+/* Override white backgrounds of the inner summary areas */
+[style*="background:#fff"][style*="width:\"100%\""] {
+  background: #f8fafc !important;
+}
+
+/* ══ 6. TEAM PANEL — FULL WIDTH MAIN COMPONENT ════════ */
+#tc-team-panel {
+  animation: tc-panel-in .22s cubic-bezier(.16,1,.3,1);
+}
+@keyframes tc-panel-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+/* Make RACI table header truly sticky */
+.tc-raci-scroll { position: relative; }
+.tc-raci-tbl thead th {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 10 !important;
+  box-shadow: 0 1px 0 #e2e8f0 !important;
+}

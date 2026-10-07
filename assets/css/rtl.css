@@ -1,0 +1,673 @@
+/* ══════════════════════════════════════════════════
+   0. ARABIC TYPOGRAPHY FOUNDATION
+══════════════════════════════════════════════════ */
+:root {
+  --ff-arabic: 'Noto Sans Arabic', 'Plus Jakarta Sans', system-ui, sans-serif;
+  --tc-sidebar-width: 240px;
+  /* RTL-aware active border: right side for RTL sidebar */
+  --tc-sidebar-active-border: rgba(59,130,246,1);
+}
+
+/* Force Arabic font everywhere in the app */
+html[dir="rtl"] body,
+html[dir="rtl"] button,
+html[dir="rtl"] input,
+html[dir="rtl"] select,
+html[dir="rtl"] textarea,
+html[dir="rtl"] .nav-item,
+html[dir="rtl"] .kpi-label,
+html[dir="rtl"] .kpi-val,
+html[dir="rtl"] .kpi-sub,
+html[dir="rtl"] .panel-hd-title,
+html[dir="rtl"] .modal-hd h2,
+html[dir="rtl"] .data-table th,
+html[dir="rtl"] .data-table td,
+html[dir="rtl"] .btn-p,
+html[dir="rtl"] .btn-g,
+html[dir="rtl"] .btn-danger,
+html[dir="rtl"] #tc-topbar-search input,
+html[dir="rtl"] #root * {
+  font-family: var(--ff-arabic) !important;
+}
+
+/* Numeric values stay LTR for proper digit display */
+html[dir="rtl"] .kpi-val,
+html[dir="rtl"] [style*="font-family:'DM Mono'"],
+html[dir="rtl"] [style*="fontFamily:'DM Mono'"],
+html[dir="rtl"] [class*="mono"] {
+  direction: ltr !important;
+  unicode-bidi: embed !important;
+}
+
+/* ══════════════════════════════════════════════════
+   1. LAYOUT — SIDEBAR RIGHT, CONTENT LEFT
+══════════════════════════════════════════════════ */
+
+/* The main app shell: flex row reversed for RTL */
+html[dir="rtl"] #root > div[style*="display:flex"],
+html[dir="rtl"] #root > div[style*="display: flex"] {
+  flex-direction: row-reverse !important;
+}
+
+/* Sidebar moves to RIGHT in RTL */
+html[dir="rtl"] .sidebar {
+  border-right: none !important;
+  border-left: 1px solid rgba(255,255,255,.07) !important;
+  box-shadow: -2px 0 24px rgba(0,0,0,.22) !important;
+  order: 2 !important;
+}
+
+/* Main content area to LEFT */
+html[dir="rtl"] .app-content,
+html[dir="rtl"] main.app-content {
+  order: 1 !important;
+  direction: rtl !important;
+}
+
+/* ══════════════════════════════════════════════════
+   2. SIDEBAR NAV ITEMS — RTL MIRRORED
+══════════════════════════════════════════════════ */
+
+html[dir="rtl"] .nav-item {
+  text-align: right !important;
+  flex-direction: row-reverse !important;
+  /* Active indicator moves to RIGHT border in RTL */
+  border-left: none !important;
+  border-right: 2px solid transparent !important;
+  padding: 8.5px 14px 8.5px 8px !important;
+}
+html[dir="rtl"] .nav-item.active {
+  border-right-color: #3B82F6 !important;
+  border-left-color: transparent !important;
+}
+
+/* Sidebar section labels align right */
+html[dir="rtl"] .sidebar [style*="font-size:10px"],
+html[dir="rtl"] .sidebar [style*="font-size: 10px"] {
+  text-align: right !important;
+  padding-right: 14px !important;
+  padding-left: 0 !important;
+}
+
+/* ══════════════════════════════════════════════════
+   3. TOPBAR — RTL MIRRORED
+══════════════════════════════════════════════════ */
+
+html[dir="rtl"] .topbar {
+  direction: rtl !important;
+  flex-direction: row-reverse !important;
+}
+
+/* Search bar in topbar */
+html[dir="rtl"] #tc-topbar-search {
+  direction: rtl !important;
+  /* Mirror the search icon to right side */
+}
+html[dir="rtl"] #tc-topbar-search input {
+  text-align: right !important;
+  direction: rtl !important;
+}
+html[dir="rtl"] #tc-topbar-search input::placeholder {
+  text-align: right !important;
+}
+
+/* Topbar actions cluster */
+html[dir="rtl"] #tc-topbar-actions {
+  flex-direction: row-reverse !important;
+}
+
+/* ══════════════════════════════════════════════════
+   4. MODALS — RTL MIRRORED
+══════════════════════════════════════════════════ */
+
+html[dir="rtl"] .modal-hd {
+  direction: rtl !important;
+  flex-direction: row-reverse !important;
+}
+html[dir="rtl"] .modal-hd h2 {
+  text-align: right !important;
+}
+html[dir="rtl"] .modal-box > * {
+  direction: rtl !important;
+}
+html[dir="rtl"] .modal-close-btn {
+  /* Close button moves to LEFT in RTL */
+  order: -1 !important;
+}
+
+/* Form rows inside modals */
+html[dir="rtl"] .modal-box label,
+html[dir="rtl"] .modal-box .form-label {
+  text-align: right !important;
+  display: block !important;
+}
+html[dir="rtl"] .modal-box input,
+html[dir="rtl"] .modal-box select,
+html[dir="rtl"] .modal-box textarea {
+  text-align: right !important;
+  direction: rtl !important;
+}
+
+/* Button rows in modals — reverse order */
+html[dir="rtl"] .modal-box div[style*="flex-end"],
+html[dir="rtl"] .modal-box div[style*="justify-content:flex-end"] {
+  flex-direction: row-reverse !important;
+  justify-content: flex-start !important;
+}
+
+/* ══════════════════════════════════════════════════
+   5. DATA TABLES — RTL MIRRORED
+══════════════════════════════════════════════════ */
+
+html[dir="rtl"] .data-table {
+  direction: rtl !important;
+}
+html[dir="rtl"] .data-table th {
+  text-align: right !important;
+}
+html[dir="rtl"] .data-table td {
+  text-align: right !important;
+}
+/* First column (code/number) stays LTR */
+html[dir="rtl"] .data-table th:first-child,
+html[dir="rtl"] .data-table td:first-child {
+  text-align: center !important;
+}
+
+/* ══════════════════════════════════════════════════
+   6. KPI CARDS — RTL LAYOUT
+══════════════════════════════════════════════════ */
+
+html[dir="rtl"] .kpi-card {
+  text-align: right !important;
+  direction: rtl !important;
+}
+/* Top accent bar stays same direction */
+html[dir="rtl"] .kpi-card::before {
+  left: 0 !important;
+  right: 0 !important;
+}
+html[dir="rtl"] .kpi-label,
+html[dir="rtl"] .kpi-sub {
+  text-align: right !important;
+}
+
+/* ══════════════════════════════════════════════════
+   7. PANEL HEADERS — RTL
+══════════════════════════════════════════════════ */
+
+html[dir="rtl"] .panel-hd {
+  flex-direction: row-reverse !important;
+  direction: rtl !important;
+}
+html[dir="rtl"] .panel-hd-title {
+  text-align: right !important;
+}
+html[dir="rtl"] .panel-body {
+  direction: rtl !important;
+  text-align: right !important;
+}
+
+/* ══════════════════════════════════════════════════
+   8. BUTTON GROUPS — RTL AWARE
+══════════════════════════════════════════════════ */
+
+html[dir="rtl"] .btn-p,
+html[dir="rtl"] .btn-g,
+html[dir="rtl"] .btn-danger {
+  direction: rtl !important;
+}
+
+/* Button rows with gap: reverse ordering */
+html[dir="rtl"] div[style*="display:flex"][style*="gap"] > .btn-p,
+html[dir="rtl"] div[style*="display:flex"][style*="gap"] > .btn-g {
+  /* Icons inside buttons flip naturally with RTL */
+}
+
+/* ══════════════════════════════════════════════════
+   9. GANTT CHART — RTL: bars flow right-to-left
+══════════════════════════════════════════════════ */
+
+/* Gantt track bar direction: start from right */
+html[dir="rtl"] [class*="gantt"] [style*="position:absolute"],
+html[dir="rtl"] [class*="gantt"] [style*="position: absolute"] {
+  direction: rtl !important;
+}
+
+/* Override Gantt bar absolute left positions to right-based in RTL */
+html[dir="rtl"] .lp-gantt-bar[style*="left:0"] {
+  left: auto !important; right: 0 !important;
+}
+html[dir="rtl"] .lp-gantt-bar[style*="left:15%"] {
+  left: auto !important; right: 15% !important;
+}
+html[dir="rtl"] .lp-gantt-bar[style*="left:8%"] {
+  left: auto !important; right: 8% !important;
+}
+
+/* Gantt gradient direction flip */
+html[dir="rtl"] .lp-gantt-bar {
+  transform: scaleX(-1) !important;
+}
+
+/* Gantt name column — right side in RTL */
+html[dir="rtl"] .lp-gantt-name {
+  text-align: right !important;
+}
+
+/* ══════════════════════════════════════════════════
+   10. KANBAN BOARD — RTL COLUMNS
+══════════════════════════════════════════════════ */
+
+html[dir="rtl"] .lp-kanban-row {
+  direction: rtl !important;
+}
+html[dir="rtl"] .lp-kan-col-header {
+  text-align: right !important;
+}
+html[dir="rtl"] .lp-kan-card-title {
+  text-align: right !important;
+}
+html[dir="rtl"] .lp-kan-card-meta {
+  flex-direction: row-reverse !important;
+}
+
+/* React Kanban board columns */
+html[dir="rtl"] [style*="kanban"],
+html[dir="rtl"] [class*="kanban"] {
+  direction: rtl !important;
+}
+
+/* ══════════════════════════════════════════════════
+   11. PROGRESS BARS — RTL direction
+══════════════════════════════════════════════════ */
+
+html[dir="rtl"] [style*="height:6px"] {
+  direction: rtl !important;
+}
+/* Filled portion starts from right */
+html[dir="rtl"] [style*="height:6px"] > div {
+  margin-right: 0 !important;
+  float: right !important;
+}
+
+/* ══════════════════════════════════════════════════
+   12. DROPDOWNS & SELECTS — RTL
+══════════════════════════════════════════════════ */
+
+html[dir="rtl"] select {
+  padding-right: 12px !important;
+  padding-left: 28px !important;
+  background-position: left 10px center !important;
+  direction: rtl !important;
+  text-align: right !important;
+}
+
+/* ══════════════════════════════════════════════════
+   13. BADGES & STATUS CHIPS — inline RTL
+══════════════════════════════════════════════════ */
+
+html[dir="rtl"] [style*="border-radius:99px"],
+html[dir="rtl"] [style*="borderRadius:\"99px\""] {
+  direction: rtl !important;
+}
+
+/* ══════════════════════════════════════════════════
+   14. LANDING PAGE — Full RTL overrides
+══════════════════════════════════════════════════ */
+
+#tc-lp {
+  direction: rtl !important;
+  font-family: var(--ff-arabic) !important;
+}
+
+/* LP Nav: logo on right, links on left for RTL */
+#tc-lp .lp-nav {
+  flex-direction: row-reverse !important;
+}
+#tc-lp .lp-nav-actions {
+  flex-direction: row-reverse !important;
+}
+
+/* Hero: content on RIGHT side in RTL */
+#tc-lp .lp-hero {
+  direction: rtl !important;
+}
+#tc-lp .lp-hero-content {
+  text-align: right !important;
+  order: 1 !important;
+}
+#tc-lp .lp-hero-visual {
+  order: 2 !important;
+}
+#tc-lp .lp-hero-h1,
+#tc-lp .lp-hero-sub,
+#tc-lp .lp-section-h,
+#tc-lp .lp-section-sub,
+#tc-lp .lp-section-eyebrow {
+  text-align: right !important;
+}
+#tc-lp .lp-hero-ctas {
+  flex-direction: row-reverse !important;
+  justify-content: flex-end !important;
+}
+#tc-lp .lp-hero-meta {
+  flex-direction: row-reverse !important;
+  justify-content: flex-end !important;
+}
+
+/* Feature cards: text right-aligned */
+#tc-lp .lp-feat-card {
+  text-align: right !important;
+  direction: rtl !important;
+}
+
+/* Role cards */
+#tc-lp .lp-role-card {
+  text-align: right !important;
+  direction: rtl !important;
+}
+
+/* CTA block */
+#tc-lp .lp-cta-inner {
+  text-align: center !important;
+  direction: rtl !important;
+}
+#tc-lp .lp-cta-btns {
+  flex-direction: row-reverse !important;
+  justify-content: center !important;
+}
+
+/* Footer */
+#tc-lp .lp-footer {
+  flex-direction: row-reverse !important;
+  direction: rtl !important;
+}
+#tc-lp .lp-footer-links {
+  flex-direction: row-reverse !important;
+}
+
+/* Trust bar */
+#tc-lp .lp-trust {
+  direction: rtl !important;
+}
+#tc-lp .lp-trust-chips {
+  flex-direction: row-reverse !important;
+  flex-wrap: wrap !important;
+  justify-content: center !important;
+}
+
+/* Band items */
+#tc-lp .lp-band-inner {
+  direction: rtl !important;
+}
+#tc-lp .lp-band-item {
+  text-align: center !important;
+}
+
+/* Floating visual tags: flip sides for RTL */
+#tc-lp .lp-tag-1 {
+  right: auto !important;
+  left: -28px !important;
+  direction: rtl !important;
+}
+#tc-lp .lp-tag-2 {
+  left: auto !important;
+  right: -32px !important;
+  direction: rtl !important;
+}
+
+/* ══════════════════════════════════════════════════
+   15. TOPBAR SEARCH — Arabic placeholder & RTL
+══════════════════════════════════════════════════ */
+
+/* Override topbar search placeholder */
+#tc-topbar-search input::placeholder {
+  content: 'البحث في المشاريع والمهام والأعضاء...' !important;
+}
+
+/* Search shortcut badge — move to left in RTL */
+#tc-topbar-search > span:last-child {
+  margin-right: auto !important;
+}
+
+/* ══════════════════════════════════════════════════
+   16. JOIN MODAL & TEAM PANEL — RTL
+══════════════════════════════════════════════════ */
+
+#tc-join-modal > div,
+#tc-team-panel > div {
+  direction: rtl !important;
+  text-align: right !important;
+}
+#tc-join-modal h2,
+#tc-team-panel div[style*="font-size:13px"] {
+  text-align: right !important;
+}
+#tc-join-modal div[style*="display:flex;gap"] {
+  flex-direction: row-reverse !important;
+}
+#tc-join-inp {
+  text-align: center !important;
+  direction: ltr !important;
+  letter-spacing: .14em !important;
+}
+
+/* ══════════════════════════════════════════════════
+   17. PROJECT TAB BAR — RTL
+══════════════════════════════════════════════════ */
+
+html[dir="rtl"] .proj-tab {
+  font-family: var(--ff-arabic) !important;
+}
+
+/* Tabs container */
+html[dir="rtl"] div:has(> .proj-tab) {
+  direction: rtl !important;
+}
+
+/* ══════════════════════════════════════════════════
+   18. INLINE REACT STYLES — RTL OVERRIDES
+   Target common patterns React generates inline
+══════════════════════════════════════════════════ */
+
+/* Grid and flex containers within app content */
+html[dir="rtl"] .app-content > div {
+  direction: rtl !important;
+}
+
+/* Breadcrumb / page titles — right-align */
+html[dir="rtl"] .topbar > div:first-child,
+html[dir="rtl"] .topbar > div:last-child {
+  text-align: right !important;
+}
+
+/* Inline h1 page titles */
+html[dir="rtl"] main h1,
+html[dir="rtl"] main h2,
+html[dir="rtl"] main h3 {
+  text-align: right !important;
+  font-family: var(--ff-arabic) !important;
+}
+
+/* Empty state containers */
+html[dir="rtl"] div[style*="text-align:center"] h1,
+html[dir="rtl"] div[style*="text-align:center"] p {
+  font-family: var(--ff-arabic) !important;
+}
+
+/* ══════════════════════════════════════════════════
+   19. WBS TREE INDENTATION — RTL
+══════════════════════════════════════════════════ */
+
+/* WBS tree indent: margin-right instead of margin-left */
+html[dir="rtl"] [style*="paddingLeft:"],
+html[dir="rtl"] [style*="padding-left:20px"],
+html[dir="rtl"] [style*="padding-left:40px"],
+html[dir="rtl"] [style*="padding-left:60px"],
+html[dir="rtl"] [style*="padding-left:80px"] {
+  direction: rtl !important;
+}
+
+/* WBS expand/collapse arrows — flip direction */
+html[dir="rtl"] [style*="transform:rotate(90deg)"],
+html[dir="rtl"] [style*="transform: rotate(90deg)"] {
+  transform: rotate(-90deg) !important;
+}
+
+/* ══════════════════════════════════════════════════
+   20. ATTACHMENT UPLOAD SECTION — RTL
+══════════════════════════════════════════════════ */
+
+html[dir="rtl"] #tc-attach-section {
+  direction: rtl !important;
+  text-align: right !important;
+}
+html[dir="rtl"] #tc-attach-drop {
+  text-align: center !important;
+}
+
+/* ══════════════════════════════════════════════════
+   21. SIDEBAR BRAND AREA ENHANCEMENT
+══════════════════════════════════════════════════ */
+
+/* Sidebar logo/brand wrapper — right align for RTL */
+html[dir="rtl"] .sidebar > *:first-child {
+  direction: rtl !important;
+  text-align: right !important;
+}
+
+/* ══════════════════════════════════════════════════
+   22. ENHANCED TOPBAR ARABIC ELEMENTS
+══════════════════════════════════════════════════ */
+
+/* Topbar left section (in RTL = right side) */
+html[dir="rtl"] #tc-topbar-search {
+  flex-direction: row-reverse !important;
+}
+
+/* ══════════════════════════════════════════════════
+   23. CUSTOM RTL SCROLLBAR
+══════════════════════════════════════════════════ */
+
+html[dir="rtl"] *::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+html[dir="rtl"] *::-webkit-scrollbar-track {
+  background: transparent;
+}
+html[dir="rtl"] *::-webkit-scrollbar-thumb {
+  background: var(--tc-slate-300);
+  border-radius: 99px;
+}
+html[dir="rtl"] .sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,.12);
+}
+
+/* ══════════════════════════════════════════════════
+   24. NOTIFICATION DOT — position override for RTL
+══════════════════════════════════════════════════ */
+
+html[dir="rtl"] .tc-notif-dot {
+  right: auto !important;
+  left: 2px !important;
+  top: 2px !important;
+}
+
+/* ══════════════════════════════════════════════════
+   25. MOBILE RTL — sidebar slides from RIGHT
+══════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  html[dir="rtl"] .sidebar {
+    right: 0 !important;
+    left: auto !important;
+    transform: translateX(100%) !important;
+  }
+  html[dir="rtl"] .sidebar.mob-open {
+    transform: translateX(0) !important;
+  }
+}
+
+/* ══════════════════════════════════════════════════
+   26. TEAM MEMBER WELCOME — RTL
+══════════════════════════════════════════════════ */
+
+html[dir="rtl"] #tc-tm-welcome {
+  direction: rtl !important;
+}
+html[dir="rtl"] #tc-tm-code {
+  direction: ltr !important;
+  text-align: center !important;
+}
+
+/* ══════════════════════════════════════════════════
+   27. BOOT SCREEN — Arabic font
+══════════════════════════════════════════════════ */
+
+#boot .boot-title,
+#boot .boot-sub {
+  font-family: 'Noto Sans Arabic', system-ui, sans-serif !important;
+}
+
+/* ══════════════════════════════════════════════════
+   28. LANDING PAGE FONTS — Arabic Override
+══════════════════════════════════════════════════ */
+
+#tc-lp * {
+  font-family: 'Noto Sans Arabic', 'Plus Jakarta Sans', system-ui, sans-serif !important;
+}
+/* Keep display headings using Arabic-aware weight */
+#tc-lp .lp-hero-h1,
+#tc-lp .lp-section-h,
+#tc-lp .lp-cta-h,
+#tc-lp .lp-role-name,
+#tc-lp .lp-feat-title {
+  font-weight: 800 !important;
+  letter-spacing: -.01em !important;
+}
+/* KPI values keep mono numeric display */
+#tc-lp .lp-kpi-val,
+#tc-lp .lp-band-val {
+  font-family: 'DM Mono', monospace !important;
+  direction: ltr !important;
+}
+
+/* ══════════════════════════════════════════════════
+   29. MOCK TOPBAR TABS — Arabic labels
+══════════════════════════════════════════════════ */
+
+/* Dashboard mock tab text override via sibling style */
+#tc-lp .lp-mock-topbar {
+  flex-direction: row-reverse !important;
+  direction: rtl !important;
+}
+#tc-lp .lp-mock-topbar > div {
+  flex-direction: row-reverse !important;
+}
+
+/* ══════════════════════════════════════════════════
+   30. FINAL SPECIFICITY BUMP — ensure RTL sticks
+      on dynamically rendered React content
+══════════════════════════════════════════════════ */
+
+html[dir="rtl"] #root,
+html[dir="rtl"] #root > * {
+  direction: rtl !important;
+}
+html[dir="rtl"] #root input,
+html[dir="rtl"] #root select,
+html[dir="rtl"] #root textarea {
+  text-align: right !important;
+}
+/* Numeric/code inputs stay LTR */
+html[dir="rtl"] #root input[type="number"],
+html[dir="rtl"] #root input[placeholder*="code"],
+html[dir="rtl"] #root input[placeholder*="Code"],
+html[dir="rtl"] #root input[style*="letter-spacing"],
+html[dir="rtl"] #root input[style*="fontFamily:'DM Mono'"],
+html[dir="rtl"] #root input[style*="monospace"] {
+  text-align: center !important;
+  direction: ltr !important;
+}
