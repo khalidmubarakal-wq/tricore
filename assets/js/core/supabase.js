@@ -225,6 +225,48 @@ const auth = {
     return { error: null };
   },
 
+  /**
+   * Verify a one-time code emailed by Supabase (`{{ .Token }}` in the email
+   * template). `type` is 'signup' (confirm a new account) or 'recovery'
+   * (password reset). On success the returned session is stored.
+   */
+  async verifyOtp({ email, token, type }) {
+    try {
+      const res = await fetch(`${SB_URL}/auth/v1/verify`, {
+        method: 'POST',
+        headers: { ...JSON_HEADERS, 'apikey': SB_KEY },
+        body: JSON.stringify({ email, token, type }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.access_token) {
+        return { data: null, error: { status: res.status, message: errorMessage(json, 'Invalid or expired code') } };
+      }
+      sb._token = json.access_token;
+      saveToken({ access_token: json.access_token, refresh_token: json.refresh_token, user: json.user });
+      return { data: { session: json, user: json.user }, error: null };
+    } catch (_) {
+      return { data: null, error: { message: 'Network error — check your connection.' } };
+    }
+  },
+
+  /** Re-send the sign-up confirmation email (and its code). */
+  async resend({ type, email }) {
+    try {
+      const res = await fetch(`${SB_URL}/auth/v1/resend`, {
+        method: 'POST',
+        headers: { ...JSON_HEADERS, 'apikey': SB_KEY },
+        body: JSON.stringify({ type, email }),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        return { error: { status: res.status, message: errorMessage(e, 'Could not resend the code') } };
+      }
+      return { error: null };
+    } catch (_) {
+      return { error: { message: 'Network error — check your connection.' } };
+    }
+  },
+
   async updatePasswordWithToken(token, newPassword) {
     const res = await fetch(`${SB_URL}/auth/v1/user`, {
       method: 'PUT',

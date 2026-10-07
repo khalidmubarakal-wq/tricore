@@ -40,6 +40,10 @@
       prefixes: ['tc_state_', 'tricore_modal_pos_'],
     }),
 
+    // Email one-time codes. Must match Supabase → Authentication → Providers →
+    // Email → "Email OTP Length" (default 6).
+    auth: Object.freeze({ otpLength: 6, resendCooldownSec: 60 }),
+
     defaultLang: 'ar',
     logoUrl: 'assets/img/logo.png', // dark wordmark, for light backgrounds
     logoOnDarkUrl: 'assets/img/logo-on-dark.png', // white wordmark, for dark backgrounds

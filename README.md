@@ -30,6 +30,9 @@ GitHub Pages). There is no build step.
 
 ## Project structure
 
+Email verification codes and the password-reset email need a one-time
+Supabase setup: see [docs/AUTH-EMAILS.md](docs/AUTH-EMAILS.md).
+
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the file layout, the
 script load order (it matters) and how the hand-written code integrates with
 the pre-compiled React bundle.

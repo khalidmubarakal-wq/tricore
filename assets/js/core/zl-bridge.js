@@ -13,6 +13,7 @@ import { sb } from './supabase.js';
 import { trackDeletions, scheduleSync, isHydrated } from './data-sync.js';
 import { setSession } from './session.js';
 import { signIn, signUp, signOut, requestPasswordReset, setNewPassword } from './auth.js';
+import { openOtpDialog } from './otp-dialog.js';
 import { joinProject } from './team-api.js';
 
 let trackedRole = 'pm';
@@ -48,7 +49,11 @@ const PASSWORD_SELECTOR = [
 
 function startRegister(name, email, pass, role) {
   registerPending = { promise: null, result: null };
-  registerPending.promise = signUp(name, email, pass, role).then((r) => { registerPending.result = r; });
+  registerPending.promise = signUp(name, email, pass, role).then((r) => {
+    registerPending.result = r;
+    // Email confirmation is on → ask for the emailed code right away.
+    if (r.ok && r.needsVerification) openOtpDialog('signup', r.email);
+  });
 }
 
 function onAuthFormSubmit(ev) {
@@ -68,7 +73,11 @@ function onAuthFormSubmit(ev) {
   } else {
     // Login form. Success reloads the page; failure is reported via Zl.login().
     loginPending = { promise: null, result: null };
-    loginPending.promise = signIn(email, pass).then((r) => { loginPending.result = r; });
+    loginPending.promise = signIn(email, pass).then((r) => {
+      loginPending.result = r;
+      // Account not verified yet → send a fresh code and ask for it.
+      if (r.unconfirmed) openOtpDialog('signup', r.email, { resend: true });
+    });
   }
 }
 
@@ -152,7 +161,11 @@ export const zl = {
 
   // Used by the team UI (join modal / team-member welcome screen).
   joinProject:          (code) => joinProject(window._tcSession?.userId, code),
-  requestPasswordReset: (email) => requestPasswordReset(email),
+  // The reset email carries a code; collect it (with the new password) in our dialog.
+  requestPasswordReset: (email) => requestPasswordReset(email).then((r) => {
+    if (r.ok) openOtpDialog('recovery', email.trim().toLowerCase());
+    return r;
+  }),
   setNewPassword:       (token, pass) => setNewPassword(token, pass),
 };
 

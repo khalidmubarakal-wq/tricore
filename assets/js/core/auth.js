@@ -56,7 +56,10 @@ export async function signIn(email, password) {
     sb.auth.signInWithPassword({ email: email.trim().toLowerCase(), password }),
     timeout,
   ]).catch((e) => ({ data: null, error: { message: e.message } }));
-  if (error) return { ok: false, err: friendlySignInError(error.message) };
+  if (error) {
+    const unconfirmed = /email not confirmed/i.test(error.message || '');
+    return { ok: false, err: friendlySignInError(error.message), unconfirmed, email: email.trim().toLowerCase() };
+  }
 
   const [profile] = await Promise.all([
     ensureProfile(data.user),
@@ -96,7 +99,8 @@ export async function signUp(fullName, email, password, role = 'pm') {
     setSession(buildSession(data.user, profile));
     return { ok: true, autoLogin: true };
   }
-  return { ok: true };
+  // Email confirmation is on: the user must enter the emailed code (or click the link).
+  return { ok: true, needsVerification: true, email: cleanMail };
 }
 
 export async function signOut() {
@@ -128,6 +132,61 @@ export async function setNewPassword(token, password) {
   if (!password || password.length < MIN_PASSWORD) return { ok: false, err: 'Password must be at least 8 characters.' };
   const { error } = await sb.auth.updatePasswordWithToken(token, password);
   if (error) return { ok: false, err: error.message || 'Could not update password.' };
+  return { ok: true };
+}
+
+/**
+ * Finish signing in with a freshly issued session (email link, OTP code):
+ * make sure the profile row exists, activate the session and reload, so the
+ * session guard restores it before the bundle renders.
+ */
+async function completeSignIn(user, accessToken, { createProfile = false } = {}) {
+  const profileRow = profileRowFor(user);
+  if (createProfile) await insertProfileRow(profileRow, accessToken);
+  markHydrated(user.id);
+  const profile = await loadProfile(user.id).catch(() => null);
+  setSession(buildSession(user, profile || profileRow));
+  window.location.reload();
+}
+
+const OTP_RE = /^\d{6,10}$/;
+const cleanCode = (code) => String(code || '').replace(/\D/g, '');
+
+/** Map a raw OTP verification error to something friendly. */
+function friendlyOtpError(error) {
+  const msg = error?.message || '';
+  if (/expired|invalid|not found|otp/i.test(msg) || error?.status === 403) return 'The code is invalid or has expired. Request a new one.';
+  if (/rate|too many/i.test(msg) || error?.status === 429) return 'Too many attempts — please wait a minute and try again.';
+  return msg || 'Verification failed.';
+}
+
+/** Confirm a new account with the code from the sign-up email, then sign in. */
+export async function verifySignupCode(email, code) {
+  const token = cleanCode(code);
+  if (!OTP_RE.test(token)) return { ok: false, err: 'Enter the code from the email.' };
+  const { data, error } = await sb.auth.verifyOtp({ email: email.trim().toLowerCase(), token, type: 'signup' });
+  if (error) return { ok: false, err: friendlyOtpError(error) };
+  await completeSignIn(data.user, data.session.access_token, { createProfile: true });
+  return { ok: true };
+}
+
+/** Send a new sign-up confirmation code. */
+export async function resendSignupCode(email) {
+  const { error } = await sb.auth.resend({ type: 'signup', email: email.trim().toLowerCase() });
+  if (error) return { ok: false, err: friendlyOtpError(error) };
+  return { ok: true };
+}
+
+/** Reset the password with the code from the reset email, then sign in. */
+export async function resetPasswordWithCode(email, code, password) {
+  const token = cleanCode(code);
+  if (!OTP_RE.test(token)) return { ok: false, err: 'Enter the code from the email.' };
+  if (!password || password.length < MIN_PASSWORD) return { ok: false, err: 'Password must be at least 8 characters.' };
+  const { data, error } = await sb.auth.verifyOtp({ email: email.trim().toLowerCase(), token, type: 'recovery' });
+  if (error) return { ok: false, err: friendlyOtpError(error) };
+  const { error: pwError } = await sb.auth.updatePasswordWithToken(data.session.access_token, password);
+  if (pwError) return { ok: false, err: pwError.message || 'Could not update password.' };
+  await completeSignIn(data.user, data.session.access_token);
   return { ok: true };
 }
 
@@ -168,13 +227,7 @@ export async function handleEmailConfirm() {
     saveToken({ access_token, refresh_token, user });
 
     // The profile could not be created at sign-up time (no session token yet).
-    const profileRow = profileRowFor(user);
-    await insertProfileRow(profileRow, access_token);
-
-    markHydrated(user.id);
-    const profile = await loadProfile(user.id).catch(() => profileRow);
-    setSession(buildSession(user, profile || profileRow));
-    window.location.reload();
+    await completeSignIn(user, access_token, { createProfile: true });
   } catch (_) {}
 }
 

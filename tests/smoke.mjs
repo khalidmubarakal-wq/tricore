@@ -27,16 +27,25 @@ const BASE = `http://127.0.0.1:${server.address().port}/`;
 const browser = await chromium.launch();
 let failed = false;
 
-async function scenario(name, fn, { signedIn = false } = {}) {
+/**
+ * Run one scenario in a fresh browser context. `supabase(route, path, method)`
+ * may answer a Supabase request itself (return true); everything else gets
+ * the default stub. Every Supabase call is recorded in `calls`.
+ */
+async function scenario(name, fn, { signedIn = false, betaAccepted = false, supabase = null } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 1366, height: 860 } });
   // No external network: fonts/icons are optional, Supabase is stubbed.
   await ctx.route(/fonts\.googleapis|fonts\.gstatic|cdnjs/, (r) => r.abort());
-  await ctx.route(/supabase\.co/, (r) => {
-    const { method } = r.request(), url = r.request().url();
-    if (url.includes('/auth/v1/user')) return r.fulfill({ json: AUTH_USER });
+  const calls = [];
+  await ctx.route(/supabase\.co/, async (r) => {
+    const method = r.request().method(), path = new URL(r.request().url()).pathname;
+    calls.push({ method, path, body: r.request().postDataJSON?.() ?? null });
+    if (supabase && (await supabase(r, path, method))) return;
+    if (path === '/auth/v1/user') return r.fulfill({ json: AUTH_USER });
     return r.fulfill({ status: 200, contentType: 'application/json', body: method === 'GET' ? '[]' : '' });
   });
   const page = await ctx.newPage();
+  if (betaAccepted) await page.addInitScript(() => sessionStorage.setItem('tc_beta_accepted', '1'));
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   if (signedIn) {
@@ -49,7 +58,7 @@ async function scenario(name, fn, { signedIn = false } = {}) {
     }, [JWT, AUTH_USER, SEED]);
   }
   try {
-    await fn(page);
+    await fn(page, calls);
     assert.deepEqual(errors, [], 'uncaught page errors');
     console.log(`✓ ${name}`);
   } catch (e) {
@@ -96,6 +105,88 @@ await scenario('team panel: join modal, escaped member names', async (page) => {
   assert.equal(await page.evaluate(() => window.__pwned), undefined, 'member name must not execute as HTML');
   assert.ok(await page.evaluate((n) => document.getElementById('tc-team-panel').textContent.includes(n), EVIL_NAME));
 }, { signedIn: true });
+
+// ── Email one-time codes ─────────────────────────────────────────────
+const SESSION = { access_token: JWT, refresh_token: 'r', token_type: 'bearer', expires_in: 3600, user: AUTH_USER };
+const CODE = '482916';
+const verifyStub = (type) => (r, path) => {
+  if (path !== '/auth/v1/verify') return false;
+  const body = r.request().postDataJSON();
+  const ok = body.token === CODE && body.type === type && body.email === AUTH_USER.email;
+  r.fulfill(ok ? { json: SESSION } : { status: 403, json: { msg: 'Token has expired or is invalid' } });
+  return true;
+};
+async function openAuth(page) {
+  await page.goto(BASE);
+  await page.click('#lp-login-btn');
+  await page.waitForSelector('.auth-bg input[type="email"]');
+}
+async function typeCode(page, code) {
+  await page.click('#tc-otp .tc-otp-cell >> nth=0');
+  await page.keyboard.type(code);
+}
+
+await scenario('sign-up asks for the emailed code, then signs in', async (page, calls) => {
+  await openAuth(page);
+  await page.click('.auth-tab >> nth=1');
+  await page.fill('input[autocomplete="name"]', 'Demo User');
+  await page.fill('.auth-bg input[type="email"]', AUTH_USER.email);
+  const pw = page.locator('.auth-bg input[type="password"]');
+  await pw.nth(0).fill('Sup3rSecret!');
+  await pw.nth(1).fill('Sup3rSecret!');
+  await page.click('.auth-bg button[type="submit"]');
+  await page.waitForSelector('#tc-otp');
+  await typeCode(page, '111111'); // wrong code → error, stays open
+  await page.waitForSelector('#tc-otp .tc-otp-err:not(:empty)');
+  await typeCode(page, CODE); // auto-submits when complete
+  await page.waitForSelector('.sidebar', { timeout: 15000 });
+  const verify = calls.filter((c) => c.path === '/auth/v1/verify').map((c) => c.body);
+  assert.deepEqual(verify.at(-1), { email: AUTH_USER.email, token: CODE, type: 'signup' });
+}, {
+  betaAccepted: true,
+  supabase: (r, path) => {
+    if (path === '/auth/v1/signup') { r.fulfill({ json: { ...AUTH_USER, confirmation_sent_at: new Date().toISOString() } }); return true; }
+    return verifyStub('signup')(r, path);
+  },
+});
+
+await scenario('signing in before verifying re-sends the code', async (page, calls) => {
+  await openAuth(page);
+  await page.fill('.auth-bg input[type="email"]', AUTH_USER.email);
+  await page.fill('.auth-bg input[type="password"]', 'Sup3rSecret!');
+  await page.click('.auth-bg button[type="submit"]');
+  await page.waitForSelector('#tc-otp');
+  await page.waitForFunction(() => document.querySelector('#tc-otp .tc-otp-info')?.textContent);
+  assert.ok(calls.some((c) => c.path === '/auth/v1/resend' && c.body?.type === 'signup'), 'resend requested');
+}, {
+  betaAccepted: true,
+  supabase: (r, path) => {
+    if (path !== '/auth/v1/token') return false;
+    r.fulfill({ status: 400, json: { error: 'invalid_grant', error_description: 'Email not confirmed' } });
+    return true;
+  },
+});
+
+await scenario('forgot password: code + new password signs in', async (page, calls) => {
+  await openAuth(page);
+  await page.click('text=Reset it');
+  await page.fill('.auth-bg input[type="email"]', AUTH_USER.email);
+  await page.click('.auth-bg button[type="submit"]');
+  await page.waitForSelector('#tc-otp');
+  await typeCode(page, CODE);
+  const pw = page.locator('#tc-otp input[type="password"]');
+  await pw.nth(0).fill('N3wPassword!');
+  await pw.nth(1).fill('mismatch');
+  await page.click('#tc-otp button[type="submit"]');
+  await page.waitForSelector('#tc-otp .tc-otp-err:not(:empty)'); // mismatch caught locally
+  await typeCode(page, CODE);
+  await pw.nth(1).fill('N3wPassword!');
+  await page.click('#tc-otp button[type="submit"]');
+  await page.waitForSelector('.sidebar', { timeout: 15000 });
+  assert.ok(calls.some((c) => c.path === '/auth/v1/recover'), 'reset email requested');
+  const update = calls.find((c) => c.path === '/auth/v1/user' && c.method === 'PUT');
+  assert.deepEqual(update?.body, { password: 'N3wPassword!' });
+}, { betaAccepted: true, supabase: verifyStub('recovery') });
 
 await browser.close();
 server.close();

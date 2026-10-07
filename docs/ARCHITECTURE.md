@@ -19,7 +19,7 @@ assets/
     landing.css                landing page (#tc-lp)
     enterprise-ui.css          design-system overrides of the bundle's styles
     rtl.css / ltr-overrides.css  Arabic RTL layout / English LTR corrections
-    beta-popup.css, team-upgrade.css
+    beta-popup.css, team-upgrade.css, otp-dialog.css
   js/
     config.js                  window.TC_CONFIG: Supabase URL/key, storage keys
     bootstrap/
@@ -35,7 +35,8 @@ assets/
       mappers.js               app record ⇄ DB row field mapping
       data-sync.js             fetchFromDB / debounced syncToDB / deletions
       session.js               session state, landing visibility, profiles
-      auth.js                  sign in/up/out, password reset, email confirm, restore
+      auth.js                  sign in/up/out, OTP verification, password reset, restore
+      otp-dialog.js            email one-time-code dialog (sign-up / password reset)
       team-api.js              join project / remove member / toggle joining
       zl-bridge.js             window.Zl adapter + auth form interception
       team-panel.js            Team tab: RACI, members, heatmap, audit
