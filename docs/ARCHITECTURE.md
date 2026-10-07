@@ -12,7 +12,7 @@ feature add-ons.
 ```
 index.html                     page shell: markup + ordered <script>/<link> tags
 assets/
-  img/                         logo.jpg, favicon.svg
+  img/                         logo.png (light bg), logo-on-dark.png, logo-mark.png, favicon.svg
   css/
     base.css                   document base + boot splash (in <head>)
     team-panel.css             team governance panel (in <head>)

@@ -1,9 +1,7 @@
 /**
  * App shell enhancements around the React bundle: language toggle in the
- * topbar (re-injected whenever React re-renders it) and the logo/gradient
- * in the sidebar brand area.
+ * topbar (re-injected whenever React re-renders it) and the sidebar gradient.
  */
-/* global tcAppLogoClick -- defined by ui/logo-handlers.js */
 (function tcUIEnhance() {
   'use strict';
 
@@ -52,18 +50,9 @@
     if (sidebar && !sidebar.dataset.tcBrand) {
       sidebar.dataset.tcBrand = 'true';
 
-      // Add a subtle gradient bottom edge
+      // Subtle vertical gradient. The brand logo itself is the bundle's
+      // sidebar header (img.tc-sidebar-logo, styled in team-upgrade.css).
       sidebar.style.background = 'linear-gradient(180deg, #0f1e35 0%, #0a1628 100%)';
-
-      // Inject real PNG logo into sidebar brand area
-      if (!document.getElementById('tc-sidebar-logo')) {
-        var logoDiv = document.createElement('div');
-        logoDiv.id = 'tc-sidebar-logo';
-        logoDiv.style.cssText = 'padding:16px 14px 12px;border-bottom:1px solid rgba(255,255,255,.07);display:flex;align-items:center;justify-content:center;cursor:pointer;';
-        logoDiv.onclick = function() { tcAppLogoClick(); };
-        logoDiv.innerHTML = '<img src="assets/img/logo.jpg" alt="TriCore" style="height:44px;width:auto;object-fit:contain;display:block;filter:brightness(0) invert(1);"/>';
-        sidebar.insertBefore(logoDiv, sidebar.firstChild);
-      }
     }
   }
 

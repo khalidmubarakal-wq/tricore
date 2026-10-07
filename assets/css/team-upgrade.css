@@ -1,52 +1,29 @@
-/* ══ 1. SIDEBAR — Remove white placeholder boxes ═══════ */
-/* Hide the React-rendered logo div (first child inside sidebar nav area) */
-.sidebar > div:first-child img[alt="TriCore"] {
-  display: none !important;
-}
-/* Hide the outer padding wrapper that creates white box feel */
+/* ══ 1. BRAND LOGOS ═══════════════════════════════════ */
+/* Sidebar header rendered by the bundle; holds img.tc-sidebar-logo. */
 .sidebar > div:first-child {
   background: transparent !important;
   border-bottom: 1px solid rgba(255,255,255,.07) !important;
-  padding: 0 !important;
-  min-height: 0 !important;
+  padding: 18px 18px 16px !important;
 }
-/* Hide tc-sidebar-logo injected content */
-#tc-sidebar-logo {
-  display: none !important;
+.tc-sidebar-logo {
+  display: block;
+  height: 34px;
+  width: auto;
+  cursor: pointer;
 }
-/* Replace with TriCore wordmark brand area */
-#tc-sidebar-brand-v4 {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 18px 18px 16px;
-  border-bottom: 1px solid rgba(255,255,255,.07);
+.tc-topbar-logo { cursor: pointer; }
+/* Above the mobile breakpoint the sidebar (with its logo) is always visible,
+   so the topbar logo and its breadcrumb divider would only duplicate it. */
+/* On phones the topbar is too narrow for logo + breadcrumb; keep the logo. */
+@media (max-width: 768px) {
+  .tc-topbar-logo + div { display: none !important; }
 }
-.tc-brand-v4-icon {
-  width: 32px; height: 32px;
-  border-radius: 9px;
-  background: linear-gradient(135deg, #3B82F6 0%, #1e3a5f 100%);
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-  box-shadow: 0 2px 10px rgba(59,130,246,.4);
-}
-.tc-brand-v4-text {
-  display: flex; flex-direction: column; gap: 1px;
-}
-.tc-brand-v4-name {
-  font-size: 16px;
-  font-weight: 800;
-  color: #fff;
-  letter-spacing: -.04em;
-  line-height: 1;
-  font-family: 'Plus Jakarta Sans', system-ui, sans-serif !important;
-}
-.tc-brand-v4-sub {
-  font-size: 9.5px;
-  font-weight: 600;
-  color: rgba(255,255,255,.3);
-  letter-spacing: .08em;
-  text-transform: uppercase;
+@media (min-width: 769px) {
+  .tc-topbar-logo { display: none !important; }
+  .tc-topbar-logo + div {
+    border-left: 0 !important; border-right: 0 !important;
+    padding-left: 0 !important; padding-right: 0 !important;
+  }
 }
 
 /* ══ 2. RACI COLORED BADGES ═══════════════════════════ */

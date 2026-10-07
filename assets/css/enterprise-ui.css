@@ -672,6 +672,8 @@ body {
   font-size: 13.5px !important;
   transition: border-color .15s, box-shadow .15s !important;
 }
+/* Inputs with a trailing icon (show-password eye) need room on that side too. */
+.auth-inp.has-r { padding-right: 42px !important; }
 .auth-inp:focus {
   border-color: #3B82F6 !important;
   box-shadow: 0 0 0 3px rgba(59,130,246,.2) !important;

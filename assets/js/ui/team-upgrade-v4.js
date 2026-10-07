@@ -1,6 +1,5 @@
 /**
  * Team section upgrade v4 — layered on top of core/team-panel.js:
- *   - TriCore wordmark at the top of the sidebar,
  *   - Team tab is exclusive (hides the other project tab panels),
  *   - softer EVM / project summary cards.
  *
@@ -10,44 +9,9 @@
  * inactive until the panel exposes them; escape the user data they render
  * (see core/dom.js) before enabling them.
  */
-/* global tcAppLogoClick, tcSetRaci, tcGetState, tcGetRaci, tcGetCurrentProject -- globals from logo-handlers.js / core/team-panel.js (guarded by window.* checks) */
+/* global tcSetRaci, tcGetState, tcGetRaci, tcGetCurrentProject -- globals from core/team-panel.js (guarded by window.* checks) */
 (function tcTeamUpgrade() {
   'use strict';
-
-  /* ──────────────────────────────────────────────────────
-     1. SIDEBAR — Add TriCore wordmark, hide placeholders
-  ────────────────────────────────────────────────────── */
-  function injectSidebarBrand() {
-    const sidebar = document.querySelector('.sidebar');
-    if (!sidebar || document.getElementById('tc-sidebar-brand-v4')) return;
-
-    const brand = document.createElement('div');
-    brand.id = 'tc-sidebar-brand-v4';
-    brand.innerHTML = `
-      <div class="tc-brand-v4-icon">
-        <svg width="18" height="18" viewBox="0 0 100 100" fill="none">
-          <defs>
-            <linearGradient id="bgi" x1="20" y1="10" x2="80" y2="90" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#60A5FA"/>
-              <stop offset="100%" stop-color="#93C5FD"/>
-            </linearGradient>
-          </defs>
-          <path d="M50 10 L88 80 L12 80 Z" fill="url(#bgi)" opacity=".95"/>
-          <circle cx="50" cy="48" r="10" fill="none" stroke="white" stroke-width="3.5" stroke-opacity=".9"/>
-          <circle cx="50" cy="48" r="4" fill="white" fill-opacity=".6"/>
-        </svg>
-      </div>
-      <div class="tc-brand-v4-text">
-        <div class="tc-brand-v4-name">TriCore</div>
-        <div class="tc-brand-v4-sub">PMO Platform</div>
-      </div>
-    `;
-    brand.style.cursor = 'pointer';
-    brand.onclick = () => { if (window.tcAppLogoClick) tcAppLogoClick(); };
-
-    // Insert as the very first child of sidebar
-    sidebar.insertBefore(brand, sidebar.firstChild);
-  }
 
   /* ──────────────────────────────────────────────────────
      2. RACI — Colored badges instead of plain R/A/C/I text
@@ -357,7 +321,6 @@
      6. INIT — Run all upgrades
   ────────────────────────────────────────────────────── */
   function runUpgrades() {
-    injectSidebarBrand();
     upgradeRaciRender();
     patchTeamTabBehavior();
     softenSummaryCards();
@@ -367,7 +330,7 @@
   setTimeout(runUpgrades, 800);
   setTimeout(runUpgrades, 2000);
 
-  // Watch for sidebar and Team panel mounting
+  // Watch for the Team panel mounting
   const obs = new MutationObserver(function(mutations) {
     for (const m of mutations) {
       if (m.addedNodes.length) {
@@ -388,9 +351,6 @@
                 }
               }
             }, 100);
-          }
-          if (node.classList?.contains('sidebar')) {
-            setTimeout(injectSidebarBrand, 200);
           }
         }
       }

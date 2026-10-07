@@ -41,6 +41,7 @@
     }),
 
     defaultLang: 'ar',
-    logoUrl: 'assets/img/logo.jpg',
+    logoUrl: 'assets/img/logo.png', // dark wordmark, for light backgrounds
+    logoOnDarkUrl: 'assets/img/logo-on-dark.png', // white wordmark, for dark backgrounds
   });
 })();
