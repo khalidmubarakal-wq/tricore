@@ -1,0 +1,180 @@
+/* When English/LTR is active, reset key structural props */
+html[dir="ltr"] body,
+html[dir="ltr"] #root,
+html[dir="ltr"] #root * {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif !important;
+}
+/* Allow DM Mono to still apply for numeric values */
+html[dir="ltr"] .kpi-val,
+html[dir="ltr"] [style*="DM Mono"],
+html[dir="ltr"] [style*="monospace"] {
+  font-family: 'DM Mono', monospace !important;
+}
+
+/* Sidebar — back to LEFT in LTR */
+html[dir="ltr"] .sidebar {
+  border-left: none !important;
+  border-right: 1px solid rgba(255,255,255,.07) !important;
+  box-shadow: 2px 0 24px rgba(0,0,0,.22) !important;
+  order: 0 !important;
+}
+/* Nav items — back to LTR */
+html[dir="ltr"] .nav-item {
+  flex-direction: row !important;
+  text-align: left !important;
+  border-right: none !important;
+  border-left: 2px solid transparent !important;
+  padding: 8.5px 14px !important;
+}
+html[dir="ltr"] .nav-item.active {
+  border-left-color: #3B82F6 !important;
+  border-right-color: transparent !important;
+}
+/* Topbar — back to LTR */
+html[dir="ltr"] .topbar {
+  direction: ltr !important;
+  flex-direction: row !important;
+}
+html[dir="ltr"] #tc-topbar-search {
+  flex-direction: row !important;
+  direction: ltr !important;
+}
+html[dir="ltr"] #tc-topbar-search input {
+  text-align: left !important;
+  direction: ltr !important;
+}
+html[dir="ltr"] #tc-topbar-actions {
+  flex-direction: row !important;
+}
+/* Main content — LTR */
+html[dir="ltr"] .app-content,
+html[dir="ltr"] main.app-content {
+  order: 0 !important;
+  direction: ltr !important;
+}
+html[dir="ltr"] main h1,
+html[dir="ltr"] main h2,
+html[dir="ltr"] main h3 {
+  text-align: left !important;
+}
+/* KPI cards — LTR */
+html[dir="ltr"] .kpi-card {
+  text-align: left !important;
+  direction: ltr !important;
+}
+html[dir="ltr"] .kpi-label,
+html[dir="ltr"] .kpi-sub {
+  text-align: left !important;
+}
+/* Panel headers — LTR */
+html[dir="ltr"] .panel-hd {
+  flex-direction: row !important;
+  direction: ltr !important;
+}
+html[dir="ltr"] .panel-hd-title {
+  text-align: left !important;
+}
+html[dir="ltr"] .panel-body {
+  direction: ltr !important;
+  text-align: left !important;
+}
+/* Tables — LTR */
+html[dir="ltr"] .data-table th,
+html[dir="ltr"] .data-table td {
+  text-align: left !important;
+}
+/* Modals — LTR */
+html[dir="ltr"] .modal-hd {
+  flex-direction: row !important;
+  direction: ltr !important;
+}
+html[dir="ltr"] .modal-hd h2 {
+  text-align: left !important;
+}
+html[dir="ltr"] .modal-box > * {
+  direction: ltr !important;
+}
+html[dir="ltr"] .modal-box label,
+html[dir="ltr"] .modal-box .form-label {
+  text-align: left !important;
+}
+html[dir="ltr"] .modal-box input,
+html[dir="ltr"] .modal-box select,
+html[dir="ltr"] .modal-box textarea {
+  text-align: left !important;
+  direction: ltr !important;
+}
+/* Button rows — LTR order */
+html[dir="ltr"] .modal-box div[style*="flex-end"] {
+  flex-direction: row !important;
+}
+/* Tables text align */
+html[dir="ltr"] .data-table {
+  direction: ltr !important;
+}
+/* Inputs — LTR */
+html[dir="ltr"] #root input,
+html[dir="ltr"] #root select,
+html[dir="ltr"] #root textarea {
+  text-align: left !important;
+  direction: ltr !important;
+}
+/* Code/numeric inputs stay centered */
+html[dir="ltr"] #root input[type="number"],
+html[dir="ltr"] #root input[style*="letter-spacing"] {
+  text-align: center !important;
+}
+/* Mobile LTR sidebar — slides from LEFT */
+@media (max-width: 768px) {
+  html[dir="ltr"] .sidebar {
+    left: 0 !important;
+    right: auto !important;
+    transform: translateX(-100%) !important;
+  }
+  html[dir="ltr"] .sidebar.mob-open {
+    transform: translateX(0) !important;
+  }
+}
+/* Landing page LTR */
+html[dir="ltr"] #tc-lp {
+  direction: ltr !important;
+}
+html[dir="ltr"] #tc-lp .lpn-in,
+html[dir="ltr"] #tc-lp .lph-in,
+html[dir="ltr"] #tc-lp .lph-stats,
+html[dir="ltr"] #tc-lp .lph-acts,
+html[dir="ltr"] #tc-lp .lpt-logos,
+html[dir="ltr"] #tc-lp .lpft-bot,
+html[dir="ltr"] #tc-lp .lpft-soc {
+  flex-direction: row !important;
+}
+html[dir="ltr"] #tc-lp .lph-content {
+  text-align: left !important;
+  order: 0 !important;
+}
+html[dir="ltr"] #tc-lp .lph-vis {
+  order: 0 !important;
+}
+html[dir="ltr"] #tc-lp .lph-badge,
+html[dir="ltr"] #tc-lp .lph h1,
+html[dir="ltr"] #tc-lp .lph-desc,
+html[dir="ltr"] #tc-lp .lps-title,
+html[dir="ltr"] #tc-lp .lps-sub,
+html[dir="ltr"] #tc-lp .lps-tag,
+html[dir="ltr"] #tc-lp .lpc-h,
+html[dir="ltr"] #tc-lp .lpc-sub,
+html[dir="ltr"] #tc-lp .lpf-title,
+html[dir="ltr"] #tc-lp .lpf-desc {
+  text-align: left !important;
+}
+html[dir="ltr"] #tc-lp .lpf-card::before {
+  transform-origin: left !important;
+}
+html[dir="ltr"] #tc-lp * {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif !important;
+}
+html[dir="ltr"] #tc-lp .lph-snum,
+html[dir="ltr"] #tc-lp .mock-kv,
+html[dir="ltr"] #tc-lp .mock-kl {
+  font-family: 'DM Mono', monospace !important;
+}

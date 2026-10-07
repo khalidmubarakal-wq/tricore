@@ -1,0 +1,177 @@
+#tc-beta-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(10, 18, 40, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: tcBetaFadeIn .3s ease;
+}
+@keyframes tcBetaFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+#tc-beta-card {
+  background: #fff;
+  border-radius: 20px;
+  padding: 36px 32px 28px;
+  max-width: 460px;
+  width: 100%;
+  box-shadow: 0 24px 64px rgba(0,0,0,.28), 0 0 0 1px rgba(0,0,0,.06);
+  animation: tcBetaSlideUp .35s cubic-bezier(.16,1,.3,1);
+  position: relative;
+  overflow: hidden;
+}
+@keyframes tcBetaSlideUp {
+  from { transform: translateY(24px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+/* Top accent strip */
+#tc-beta-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #f59e0b, #ef4444, #f59e0b);
+  background-size: 200% 100%;
+  animation: tcBetaShimmer 2.5s linear infinite;
+}
+@keyframes tcBetaShimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+#tc-beta-icon {
+  width: 56px;
+  height: 56px;
+  background: linear-gradient(135deg, #FEF3C7, #FDE68A);
+  border: 2px solid #F59E0B33;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  margin: 0 auto 18px;
+}
+#tc-beta-title {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 800;
+  color: #0F172A;
+  margin: 0 0 6px;
+  letter-spacing: -.025em;
+  font-family: 'Noto Sans Arabic', 'Plus Jakarta Sans', system-ui, sans-serif;
+}
+#tc-beta-subtitle {
+  text-align: center;
+  font-size: 12.5px;
+  color: #64748B;
+  margin: 0 0 22px;
+  font-family: 'Noto Sans Arabic', 'Plus Jakarta Sans', system-ui, sans-serif;
+}
+#tc-beta-warnings {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+.tc-beta-warn-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  background: #FFF7ED;
+  border: 1px solid #FED7AA;
+  border-radius: 10px;
+  padding: 11px 13px;
+  font-family: 'Noto Sans Arabic', 'Plus Jakarta Sans', system-ui, sans-serif;
+  direction: rtl;
+  text-align: right;
+}
+.tc-beta-warn-icon {
+  font-size: 17px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.tc-beta-warn-text {
+  font-size: 12.5px;
+  color: #92400E;
+  line-height: 1.6;
+  font-weight: 500;
+}
+.tc-beta-warn-text strong {
+  color: #78350F;
+  font-weight: 700;
+  display: block;
+  margin-bottom: 2px;
+}
+#tc-beta-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: #F8FAFC;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 10px;
+  margin-bottom: 18px;
+  cursor: pointer;
+  direction: rtl;
+  transition: border-color .15s, background .15s;
+}
+#tc-beta-checkbox-row:hover {
+  border-color: #0ea5e9;
+  background: #f0f9ff;
+}
+#tc-beta-checkbox-row input[type=checkbox] {
+  width: 17px;
+  height: 17px;
+  accent-color: #0ea5e9;
+  flex-shrink: 0;
+  cursor: pointer;
+  margin: 0;
+}
+#tc-beta-checkbox-label {
+  font-size: 12.5px;
+  color: #334155;
+  font-family: 'Noto Sans Arabic', 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 500;
+  cursor: pointer;
+  line-height: 1.5;
+}
+#tc-beta-accept-btn {
+  width: 100%;
+  padding: 13px;
+  background: #0ea5e9;
+  color: #fff;
+  border: none;
+  border-radius: 11px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: 'Noto Sans Arabic', 'Plus Jakarta Sans', system-ui, sans-serif;
+  transition: background .15s, transform .1s, opacity .15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  letter-spacing: -.01em;
+}
+#tc-beta-accept-btn:hover:not(:disabled) {
+  background: #0284c7;
+}
+#tc-beta-accept-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+#tc-beta-accept-btn:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+#tc-beta-version {
+  text-align: center;
+  font-size: 11px;
+  color: #94A3B8;
+  margin-top: 14px;
+  font-family: 'DM Mono', monospace;
+}
